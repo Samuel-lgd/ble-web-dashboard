@@ -9,6 +9,10 @@ import { POLLING } from './config.js';
  * @property {number} interval - Polling interval in ms.
  * @property {'standard' | 'toyota'} protocol - Protocol badge.
  * @property {string} [header] - ATSH header required before sending (Toyota PIDs only).
+ * @property {string} [source] - Source URL or reference for the PID formula.
+ * @property {boolean} [verified] - true only if formula confirmed by 2+ independent sources.
+ * @property {string} [notes] - Explanation of formula derivation and known caveats.
+ * @property {boolean} [calibrationNeeded] - true if formula is uncertain and needs real vehicle testing.
  */
 
 /**
@@ -147,6 +151,36 @@ export const STANDARD_PIDS = [
       const b = parseBytes(raw, 1);
       if (!b) return null;
       return b[0] - 40;
+    },
+  },
+  {
+    pid: '0149',
+    name: 'Accel Pedal Pos',
+    unit: '%',
+    interval: POLLING.FAST,
+    protocol: 'standard',
+    source: 'SAE J1979 — PID 0x49 Accelerator Pedal Position D',
+    verified: true,
+    notes: 'Standard OBD2 PID 49h. Returns absolute pedal position (0-100%). Scale: A*100/255.',
+    parse(raw) {
+      const b = parseBytes(raw, 1);
+      if (!b) return null;
+      return (b[0] * 100) / 255;
+    },
+  },
+  {
+    pid: '0142',
+    name: '12V System Voltage',
+    unit: 'V',
+    interval: POLLING.SLOW,
+    protocol: 'standard',
+    source: 'SAE J1979 — PID 0x42 Control Module Voltage',
+    verified: true,
+    notes: 'Standard OBD2 PID 42h. Measures the 12V system (control module) voltage. Scale: (A*256+B)/1000.',
+    parse(raw) {
+      const b = parseBytes(raw, 2);
+      if (!b) return null;
+      return ((b[0] * 256) + b[1]) / 1000;
     },
   },
 ];
