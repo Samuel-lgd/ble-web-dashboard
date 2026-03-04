@@ -3,6 +3,97 @@
 Web Bluetooth OBD2 dashboard for Toyota Yaris Hybrid 2020 with real-time vehicle data display.
 Connects to a Vlinker MC+ (or any ELM327-based BLE adapter) directly from Chrome.
 
+## Development / Mock mode
+
+The dashboard includes a built-in simulation layer that runs without any hardware — no BLE adapter, no car needed. It is the primary way to develop and test UI components.
+
+### Activating mock mode
+
+In `config.js`, set:
+
+```js
+export const TRANSPORT_MODE = 'mock'; // 'ble' | 'serial' | 'mock'
+```
+
+Start the dev server and open the app. After ~3 seconds (simulated BLE connection delay) the status changes to **ready** and all gauges begin populating with live simulated data. The connection status cycle is identical to a real vehicle connection, so the connect/connecting/initializing/ready UI flow can be tested without hardware.
+
+### Mock control panel
+
+A floating overlay appears in the **bottom-right corner** when mock mode is active:
+
+```
+┌─────────────────────────────────────┐
+│ MOCK  [city ▾]  [1× ▾]          ✕  │
+│ SOC  ──────●──────────  58.2%       │
+│ Speed  47 km/h  ↑                   │
+│ Engine: ON   EV: OFF   A/C: OFF     │
+│ [FORCE REGEN] [FORCE ACCEL]         │
+│ [TOGGLE A/C]  [RESET TRIP]          │
+└─────────────────────────────────────┘
+```
+
+| Control | Purpose |
+|---------|---------|
+| Scenario dropdown | Switch between city / highway / mixed / stress |
+| Speed multiplier | 1× / 2× / 5× — accelerates the simulation clock for trip history testing |
+| SOC slider | Override battery state-of-charge in real time |
+| Speed readout | Live vehicle speed with direction arrows |
+| Engine / EV / A/C badges | Current state at a glance |
+| **Force Regen** | Triggers 5 seconds of hard braking / regen immediately |
+| **Force Accel** | Triggers 5 seconds of heavy electric acceleration immediately |
+| **Toggle A/C** | Toggle the A/C compressor on/off |
+| **Reset Trip** | Stop the current trip and start a new one |
+
+Click **✕** to collapse the panel to a small chip; click **MOCK** to re-expand.
+
+### Scenarios
+
+| Scenario | Duration | Description |
+|----------|----------|-------------|
+| `city` | ~15 min | Urban drive: cold start, EV mode, traffic stops, main road burst |
+| `highway` | ~20 min | Motorway: on-ramp surge, 110 km/h cruise, overtaking, exit regen |
+| `mixed` | ~25 min | City → national road → highway → urban end; exercises all hybrid states |
+| `stress` | — | Rapid state changes: speed 0↔120, engine cycling, A/C toggle, SOC extremes |
+
+All scenarios loop continuously.
+
+### Console API (mock mode)
+
+```js
+// Switch scenario at runtime
+mockEngine.setScenario('highway');   // 'city' | 'highway' | 'mixed' | 'stress'
+
+// Speed up simulation clock (useful for generating trip history quickly)
+mockEngine.setSpeedMultiplier(5);    // 1 | 2 | 5
+
+// Force specific states immediately
+mockEngine.forceRegen();             // 5 seconds hard braking
+mockEngine.forceAccel();             // 5 seconds heavy acceleration
+mockEngine.toggleAC();
+
+// Override battery SOC directly
+mockEngine.setSoc(42);               // 40–70 %
+
+// Read current physics state (for debugging)
+mockEngine.getState();
+
+// Stop / restart
+mockEngine.stop();
+mockEngine.start();
+```
+
+### Switching to real hardware
+
+Change one line in `config.js`:
+
+```js
+export const TRANSPORT_MODE = 'ble'; // was 'mock'
+```
+
+The entire mock layer is loaded via dynamic import and is excluded from the production bundle when `TRANSPORT_MODE` is not `'mock'`.
+
+---
+
 ## Serving locally
 
 Any static file server works. The simplest option:
@@ -127,12 +218,111 @@ The parse formulas in `pids-toyota.js` are marked with `[VERIFY]` where they nee
    - Voltage: `(A * 256 + B) / 2` or `/ 10`
    - Current: `(A * 256 + B - 32768) / 100` (signed with offset)
 
+## Trip recording engine
+
+The dashboard includes an automatic trip recording system that captures OBD snapshots, GPS tracks, and computes detailed analytics for every drive.
+
+### How trips are stored
+
+Trips are persisted in the browser's **IndexedDB** database (`obd2_trips`). Each trip contains:
+
+- **Full OBD snapshots** (1 per second by default) — speed, RPM, fuel rate, hybrid battery data, motor torques, and more.
+- **GPS route** (if location permission is granted) — latitude, longitude, altitude, and speed at each point.
+- **Computed statistics** — distance, fuel consumed, cost, EV mode percentage, regenerative energy recovered, CO2 emissions, and more.
+- **Weather data** — fetched from Open-Meteo (free, no API key) at trip end.
+
+Trip summaries (without the large snapshot arrays) are stored separately for fast list rendering. Snapshots older than 7 days are automatically compressed (thinned to 1 per 10 seconds) to save space.
+
+### Auto-start and auto-stop
+
+Trips start and stop automatically based on vehicle state:
+
+- **Auto-start**: When vehicle speed > 0 for 10 consecutive seconds after OBD connection.
+- **Auto-stop**: When speed = 0 AND RPM = 0 for 60 consecutive seconds (configurable).
+
+If the BLE connection drops mid-trip, the trip is saved with `"interrupted"` status.
+
+### Exporting a GPX file and opening it in Google Maps
+
+1. Open the browser console (`F12` → Console tab).
+2. List your trips:
+   ```js
+   const trips = await tripManager.getTrips();
+   console.table(trips.map(t => ({ id: t.id, start: t.startTime, km: t.stats.distanceKm.toFixed(1) })));
+   ```
+3. Export a trip as GPX:
+   ```js
+   await tripManager.exportTrip('paste-trip-id-here', 'gpx');
+   ```
+4. A `.gpx` file will download. To view it in Google Maps:
+   - Go to [Google My Maps](https://www.google.com/maps/d/) and create a new map.
+   - Click **Import** and upload the `.gpx` file.
+   - Your route will appear on the map with track points.
+
+Other export formats: `'json'` (full trip data) and `'csv'` (OBD snapshots as spreadsheet).
+
+### Changing fuel price
+
+The fuel price used for cost calculations is stored in `localStorage`. To change it:
+
+```js
+tripManager.getConfig().set('fuelPricePerLiter', 1.65);  // EUR per liter
+```
+
+All configurable settings:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `fuelPricePerLiter` | `1.85` | EUR per liter, used for cost calculation |
+| `fuelType` | `"hybrid"` | Vehicle fuel type |
+| `vehicleName` | `"Yaris Hybrid 2020"` | Vehicle identifier |
+| `autoStartTrip` | `true` | Enable/disable auto-start |
+| `autoStopDelay` | `60` | Seconds of inactivity before auto-stop |
+| `snapshotIntervalMs` | `1000` | How often to capture OBD data (ms) |
+| `gpsEnabled` | `true` | Enable/disable GPS tracking |
+| `weatherEnabled` | `true` | Fetch weather on trip end |
+
+To reset all settings to defaults: `tripManager.getConfig().reset()`.
+
+### Storage quota
+
+The trip engine monitors IndexedDB storage usage. When usage exceeds 80% of the browser's estimated quota, a `trip:storage-warning` event is emitted. You can check storage manually:
+
+```js
+const storage = tripManager._storage;
+const quota = await storage.checkStorageQuota();
+console.log(`Used: ${quota.usedMB.toFixed(1)} MB / ${quota.quotaMB.toFixed(0)} MB (${quota.percentUsed.toFixed(1)}%)`);
+```
+
+To free space, delete old trips:
+
+```js
+await tripManager.deleteTrip('trip-id-here');
+```
+
+### Console API reference
+
+The `tripManager` object is available on `window` for console access:
+
+```js
+tripManager.startTrip()           // Manually start recording
+tripManager.stopTrip()            // Stop and finalize
+tripManager.pauseTrip()           // Pause snapshot collection
+tripManager.resumeTrip()          // Resume collection
+tripManager.getCurrentTrip()      // Get live trip with stats
+await tripManager.getTrips()      // List all trip summaries
+await tripManager.getTrip(id)     // Get full trip with snapshots
+await tripManager.deleteTrip(id)  // Delete a trip
+await tripManager.exportTrip(id, 'json' | 'gpx' | 'csv')
+await tripManager.exportAllSummary()  // Download multi-trip CSV
+```
+
 ## File structure
 
 ```
 ├── index.html          — Single-page app shell
-├── main.js             — Entry point, wires all layers together
-├── config.js           — All constants and configuration
+├── main.js             — Legacy entry point (non-React UI), mock-aware
+├── config.js           — All constants + TRANSPORT_MODE flag
 ├── ble-adapter.js      — Web Bluetooth connection layer
 ├── elm327.js           — ELM327 protocol, command queue, response parsing
 ├── atsh-manager.js     — ECU header switching for Toyota proprietary PIDs
@@ -140,7 +330,33 @@ The parse formulas in `pids-toyota.js` are marked with `[VERIFY]` where they nee
 ├── pids-standard.js    — Standard OBD2 PID definitions
 ├── pids-toyota.js      — Toyota-specific PID definitions (separate file)
 ├── store.js            — Reactive data store with 60s rolling history
-├── ui.js               — Functional dashboard UI
+├── ui.js               — Functional dashboard UI (legacy)
 ├── manifest.json       — PWA manifest
-└── service-worker.js   — Offline shell caching
+├── service-worker.js   — Offline shell caching
+├── src/
+│   ├── main.jsx            — React entry point, mock-aware bootstrap
+│   ├── pid-keys.js         — Shared PID key string constants
+│   ├── mock/
+│   │   ├── mock-engine.js      — MockEngine + MockAdapter + MockELM
+│   │   ├── mock-physics.js     — Pure physics functions (noise, RPM, SOC, temps…)
+│   │   ├── mock-store-bridge.js — Maps sim state → store.update() calls
+│   │   ├── MockControlPanel.jsx — Floating dev overlay (mock mode only)
+│   │   └── scenarios/
+│   │       ├── scenario-city.js     — Urban ~15 min
+│   │       ├── scenario-highway.js  — Motorway ~20 min
+│   │       ├── scenario-mixed.js    — Mixed real-world ~25 min
+│   │       └── scenario-stress.js  — Rapid state changes for UI stress-testing
+│   ├── components/
+│   │   ├── App.jsx
+│   │   ├── DashboardContext.jsx
+│   │   └── … (gauges, sparklines, trip UI)
+│   └── trips/
+│       ├── trip-types.js       — JSDoc type definitions
+│       ├── trip-manager.js     — Main trip orchestrator (start/stop/auto-detect)
+│       ├── trip-storage.js     — IndexedDB persistence with auto-compression
+│       ├── trip-calculator.js  — Pure stat computation functions
+│       ├── trip-exporter.js    — JSON/GPX/CSV export with browser download
+│       ├── geo-manager.js      — GPS tracking, GPX generation, reverse geocoding
+│       ├── weather-manager.js  — Open-Meteo weather fetching
+│       └── config-manager.js   — Persistent user settings (localStorage)
 ```

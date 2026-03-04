@@ -4,6 +4,19 @@
  * Use nRF Connect to discover the correct values.
  */
 
+/**
+ * Transport mode. Controls which data pipeline is used on boot.
+ *
+ *   'ble'    — Real Web Bluetooth → ELM327 → OBD2 pipeline (requires hardware)
+ *   'mock'   — Simulated data from MockEngine; no hardware needed
+ *   'serial' — Reserved for future Web Serial support
+ *
+ * Change to 'ble' before connecting to a real vehicle.
+ * The mock files are loaded via dynamic import and are excluded from
+ * production bundles when this is set to 'ble'.
+ */
+export const TRANSPORT_MODE = 'mock'; // 'ble' | 'serial' | 'mock'
+
 /** BLE GATT service and characteristic UUIDs for ELM327-based adapters */
 export const BLE = {
   /** Primary GATT service UUID (Vlinker MC+ default: 0xFFF0) */

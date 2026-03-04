@@ -2,80 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>BLE OBD2 Dashboard</title>
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#1a1a1a">
-  <style>
-    /* Minimal functional styling — no design effort, just readability */
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: monospace;
-      background: #1a1a1a;
-      color: #e0e0e0;
-      padding: 12px;
-      font-size: 14px;
-    }
-    h1 { font-size: 18px; margin-bottom: 8px; }
-    h2 { font-size: 14px; margin: 12px 0 4px; color: #aaa; }
-    #connection { margin-bottom: 8px; }
-    #connect-btn {
-      font-family: monospace;
-      font-size: 14px;
-      padding: 6px 16px;
-      cursor: pointer;
-      background: #333;
-      color: #e0e0e0;
-      border: 1px solid #555;
-    }
-    #connect-btn:disabled { opacity: 0.5; cursor: default; }
-    #status {
-      margin-left: 12px;
-      padding: 2px 8px;
-      border: 1px solid #555;
-      font-size: 12px;
-    }
-    #log {
-      background: #111;
-      border: 1px solid #333;
-      padding: 8px;
-      font-size: 12px;
-      max-height: 200px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-    th, td {
-      text-align: left;
-      padding: 4px 8px;
-      border-bottom: 1px solid #333;
-    }
-    th { color: #888; font-size: 11px; text-transform: uppercase; }
-    .pid-value { font-weight: bold; color: #4fc3f7; }
-    .pid-age { color: #888; font-size: 11px; }
-    .badge {
-      font-size: 10px;
-      padding: 1px 5px;
-      border-radius: 3px;
-      font-weight: bold;
-    }
-    .badge-standard { background: #2e7d32; color: #fff; }
-    .badge-toyota { background: #c62828; color: #fff; }
-  </style>
+  <meta name="theme-color" content="#0a0a0c">
+  <meta name="screen-orientation" content="landscape">
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="main.js"></script>
-  <script>
-    // Register service worker for PWA
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js').catch(() => {});
-    }
-  </script>
+  <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>

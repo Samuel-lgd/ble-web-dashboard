@@ -1,2 +1,6 @@
 tmpclaude-*
 *.ps1
+
+node_modules/
+dist/
+build/

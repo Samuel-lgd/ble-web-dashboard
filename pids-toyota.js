@@ -63,6 +63,12 @@ function signed16(hi, lo) {
   return val;
 }
 
+// ─── Missing PIDs (dashboard requires, not yet discovered) ──────────────────
+// TO IMPLEMENT: A/C Compressor Power (W) — ECU 7E0, PID unknown
+//   Needed by: FuelConsumptionGauge A/C overlay. Currently simulated by MockEngine.
+//   Candidate: Mode 21 PID on HVAC ECU (7E0 or dedicated A/C ECU).
+//   Workaround: derive from 12V current spike when A/C clutch engages.
+
 // ─── Toyota Proprietary PIDs ─────────────────────────────────────────────────
 
 /** @type {PIDDefinition[]} */
