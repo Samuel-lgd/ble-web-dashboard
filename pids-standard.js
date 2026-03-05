@@ -46,6 +46,18 @@ export const STANDARD_PIDS = [
     },
   },
   {
+    pid: '0104',
+    name: 'Engine Load',
+    unit: '%',
+    interval: POLLING.FAST,
+    protocol: 'standard',
+    parse(raw) {
+      const b = parseBytes(raw, 1);
+      if (!b) return null;
+      return (b[0] * 100) / 255;
+    },
+  },
+  {
     pid: '010D',
     name: 'Vehicle Speed',
     unit: 'km/h',

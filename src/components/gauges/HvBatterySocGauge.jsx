@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs } from './gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, BezelDefs } from './gauge-utils.jsx';
 
 /**
  * HV Battery SOC gauge — large circular with chrome bezel.
@@ -23,30 +23,37 @@ export default function HvBatterySocGauge() {
   const kwAbs = Math.abs(kw);
 
   const gaugeMin = 40, gaugeMax = 70;
-  const needleAngle = valueToAngle(Math.max(gaugeMin, Math.min(gaugeMax, soc)), gaugeMin, gaugeMax);
-  const [nx, ny] = polarToXY(0, 0, 36, needleAngle);
-  const [nbx, nby] = polarToXY(0, 0, 4, needleAngle + 180);
+  const socAngle = valueToAngle(Math.max(gaugeMin, Math.min(gaugeMax, soc)), gaugeMin, gaugeMax);
 
-  const ticks = generateTicks(gaugeMin, gaugeMax, 10, 5, 42);
+  // Regen arc spans top semicircle (-90° → +90°): 0 kW parks at 9 o'clock, 20 kW at 3 o'clock
+  const kwClamped = isCharging ? Math.min(kwAbs, 20) : 0;
+  const kwAngle   = valueToAngle(kwClamped, 0, 20, -90, 90);
+  const [nx, ny]   = polarToXY(0, 0, 30, kwAngle);
+  const [nbx, nby] = polarToXY(0, 0, 4, kwAngle + 180);
 
-  // kW arc: inner ring showing charge/discharge rate (0-20kW range)
-  const kwAngle = valueToAngle(Math.min(kwAbs, 20), 0, 20, -90, 90);
+  const REGEN_R = 32;
+  const regenTicks = [0, 5, 10, 15, 20].map(v => {
+    const a        = valueToAngle(v, 0, 20, -90, 90);
+    const isMajor  = v % 10 === 0;
+    const [ox, oy] = polarToXY(0, 0, REGEN_R - 1, a);
+    const [ix, iy] = polarToXY(0, 0, REGEN_R - (isMajor ? 5 : 3), a);
+    return { v, ox, oy, ix, iy, isMajor };
+  });
 
   return (
     <div className="w-full h-full flex items-center justify-center">
       <svg viewBox="-50 -50 100 100" className="w-full h-full" style={{ overflow: 'visible' }}>
         <defs>
           <BezelDefs id="soc" />
-          <linearGradient id="soc-charge" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#22c55e" />
-            <stop offset="50%" stopColor="#4ade80" />
-            <stop offset="100%" stopColor="#86efac" />
+          <linearGradient id="regen-grad" gradientUnits="userSpaceOnUse"
+            x1="-32" y1="0" x2="32" y2="-32">
+            <stop offset="0%"   stopColor="#00ee66" />
+            <stop offset="50%"  stopColor="#00ff99" />
+            <stop offset="100%" stopColor="#77ffcc" />
           </linearGradient>
-          <filter id="soc-regen-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
-            <feColorMatrix in="blur" type="matrix"
-              values="0 0 0 0 0.133  0 0 0 0 0.773  0 0 0 0 0.369  0 0 0 0.8 0" result="green" />
-            <feMerge><feMergeNode in="green" /><feMergeNode in="SourceGraphic" /></feMerge>
+          <filter id="regen-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.5" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
           <linearGradient id="soc-arc-electric" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#0066ff" />
@@ -71,62 +78,51 @@ export default function HvBatterySocGauge() {
           fill="none" stroke="#061020" strokeWidth="3" opacity="0.6" />
 
         {/* SOC value arc — electric blue with glow */}
-        <path d={describeArc(0, 0, 40, -135, needleAngle)}
+        <path d={describeArc(0, 0, 40, -135, socAngle)}
           fill="none" stroke="url(#soc-arc-electric)" strokeWidth="3" strokeLinecap="round"
           opacity="0.85" filter="url(#soc-arc-glow)" />
 
-        {/* Inner regen arc track */}
-        <path d={describeArc(0, 0, 30, -90, 90)}
-          fill="none" stroke="#0a120a" strokeWidth="2.5" opacity="0.35" />
 
-        {/* Regen (charge) arc — only shown when charging, with glow */}
-        {isCharging && kwAbs > 0.1 && (
-          <path d={describeArc(0, 0, 30, -90, kwAngle)}
-            fill="none"
-            stroke="url(#soc-charge)"
-            strokeWidth="2.5" strokeLinecap="round" opacity="0.95"
-            filter="url(#soc-regen-glow)" />
-        )}
+        {/* "REGEN" label tucked between arcs at 12 o'clock */}
+        <text x="0" y="-22"
+          fill={isCharging ? '#00cc55' : '#152515'}
+          fontSize="2.6" textAnchor="middle" dominantBaseline="central"
+          style={{ fontFamily: 'Orbitron, monospace', letterSpacing: '1.2px' }}>
+          REGEN
+        </text>
 
-        {/* Tick marks */}
-        {ticks.map(({ v, ox, oy, ix, iy, isMajor }) => (
-          <g key={v}>
-            <line x1={ix} y1={iy} x2={ox} y2={oy}
-              stroke={isMajor ? '#666' : '#333'} strokeWidth={isMajor ? 0.8 : 0.4} />
-            {isMajor && (
-              <text
-                x={polarToXY(0, 0, 35, valueToAngle(v, gaugeMin, gaugeMax))[0]}
-                y={polarToXY(0, 0, 35, valueToAngle(v, gaugeMin, gaugeMax))[1]}
-                fill="#555" fontSize="4" textAnchor="middle" dominantBaseline="central"
-                style={{ fontFamily: 'Orbitron, monospace' }}>
-                {v}
-              </text>
-            )}
-          </g>
-        ))}
+        {/* kW value inside the regen arc zone */}
+        <text x="0" y="-16"
+          fill={isCharging ? '#00ff88' : '#0f200f'}
+          fontSize="5.5" textAnchor="middle" dominantBaseline="central"
+          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
+          {isCharging ? kwAbs.toFixed(1) : '0'}
+        </text>
+        <text x="0" y="-11"
+          fill={isCharging ? '#009944' : '#0f200f'}
+          fontSize="2.8" textAnchor="middle" dominantBaseline="central"
+          style={{ fontFamily: 'Orbitron, monospace' }}>
+          kW
+        </text>
 
-        {/* Battery temp complication — round, middle top */}
-        <circle cx="0" cy="-15" r="8" fill="#0a0a10"
-          stroke="#2a2a30" strokeWidth="0.6" />
-        <circle cx="0" cy="-15" r="7" fill="none"
-          stroke="rgba(0,0,0,0.3)" strokeWidth="0.5" />
-        <text x="0" y="-16" fill={battTempColor} fontSize="5" textAnchor="middle"
+        {/* Battery temp */}
+        <text x="0" y="37" fill={battTempColor} fontSize="5" textAnchor="middle"
           dominantBaseline="central"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
-          {Math.round(battTemp)}°
-        </text>
-        <text x="0" y="-10" fill="#444" fontSize="2.5" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace' }}>
-          BATT
+          {Math.round(battTemp)}°C
         </text>
 
-        {/* Needle */}
+
+        {/* Needle — tracks regen kW */}
         <line x1={nbx} y1={nby} x2={nx} y2={ny}
-          stroke="#00aaff" strokeWidth="1.5" strokeLinecap="round"
+          stroke={isCharging ? '#00ff88' : '#1a3a1a'}
+          strokeWidth="1.5" strokeLinecap="round"
           className="gauge-needle-line" />
         <line x1={nbx} y1={nby} x2={nx} y2={ny}
-          stroke="#00ccff" strokeWidth="3" strokeLinecap="round"
-          opacity="0.15" className="gauge-needle-line" />
+          stroke={isCharging ? '#00ff88' : '#0a1a0a'}
+          strokeWidth="4" strokeLinecap="round"
+          opacity={isCharging ? 0.22 : 0.08}
+          className="gauge-needle-line" />
         {/* Center cap */}
         <circle cx="0" cy="0" r="3" fill="url(#soc-cap)" stroke="#1a1a1c" strokeWidth="0.3" />
         <circle cx="0" cy="0" r="1.2" fill="#555" />

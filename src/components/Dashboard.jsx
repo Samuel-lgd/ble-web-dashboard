@@ -1,7 +1,7 @@
 import React from 'react';
 import SpeedGauge from './gauges/SpeedGauge';
 import ConsumptionHistory from './charts/ConsumptionHistory';
-import RpmGauge from './gauges/RpmGauge';
+import EnginePowerGauge from './gauges/EnginePowerGauge';
 import EngineThermalStatus from './badges/EngineThermalStatus';
 import HvBatterySocGauge from './gauges/HvBatterySocGauge';
 import RegenAccelDelta from './visualizations/RegenAccelDelta';
@@ -27,7 +27,7 @@ export default function Dashboard({ onNavigateTrips, onNavigateDebug }) {
         <div className="w-[28%] flex flex-col gap-px min-h-0 zone-thermal relative">
           <span className="zone-label zone-label-thermal">THERMAL</span>
           <div className="flex-[5] min-h-0 overflow-visible">
-            <RpmGauge />
+            <EnginePowerGauge />
           </div>
           <div className="flex-[3] min-h-0 overflow-visible">
             <EngineThermalStatus />
@@ -39,15 +39,11 @@ export default function Dashboard({ onNavigateTrips, onNavigateDebug }) {
 
         {/* CENTER — Speed + Nav row + Avg Consumption */}
         <div className="flex-1 flex flex-col gap-px min-h-0 zone-center">
-          <div className="flex-[5] min-h-0 overflow-visible">
-            <SpeedGauge />
-          </div>
-
-          {/* Nav row: [dist & cost] — [DEBUG · TRIPS] — [temp] */}
+                    {/* Nav row: [DEBUG · TRIPS] — */}
           <div className="relative flex items-center px-3 py-1 shrink-0 z-10">
             {/* Left — dist & cost stacked */}
             {/* Center — absolutely positioned so it's always dead-center */}
-            <div className="absolute left-1/2 -translate-x-1/2 flex gap-40 bottom-2">
+            <div className="absolute left-1/2 -translate-x-1/2 flex gap-40 top-2 opacity-80">
               <button
                 onClick={onNavigateDebug}
                 className="cluster-nav-btn cluster-nav-btn--amber"
@@ -64,6 +60,9 @@ export default function Dashboard({ onNavigateTrips, onNavigateDebug }) {
               </button>
             </div>
           </div>
+          <div className="flex-[5] min-h-0 overflow-visible">
+            <SpeedGauge />
+          </div>
 
           <div className="flex-[1.5] min-h-0 px-2 pb-2">
             <ConsumptionHistory />
@@ -79,7 +78,7 @@ export default function Dashboard({ onNavigateTrips, onNavigateDebug }) {
           <div className="flex-[5] min-h-0 overflow-visible">
             <HvBatterySocGauge />
           </div>
-          <div className="flex-[3.5] min-h-0 overflow-visible p-2 pt-0">
+          <div className="flex-[3.5] min-h-0 overflow-visible p-2">
             <RegenAccelDelta />
           </div>
         </div>

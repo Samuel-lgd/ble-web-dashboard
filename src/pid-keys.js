@@ -13,6 +13,7 @@
 export const PID_KEYS = {
   // Standard PIDs
   ENGINE_RPM:          'standard::010C:Engine RPM',
+  ENGINE_LOAD:         'standard::0104:Engine Load',
   VEHICLE_SPEED:       'standard::010D:Vehicle Speed',
   COOLANT_TEMP:        'standard::0105:Coolant Temp',
   INTAKE_AIR_TEMP:     'standard::010F:Intake Air Temp',

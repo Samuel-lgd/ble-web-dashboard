@@ -135,6 +135,18 @@ export default function SpeedGauge() {
           />
         )}
 
+        <text
+          y={-47}
+          fill={l100km > 0.1 ? '#f59e0b' : '#00cfff'}
+          fontSize="5.5"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          opacity="0.5"
+          style={{ fontFamily: 'Orbitron, monospace' }}
+        >
+          {30}
+        </text>
+
         {/* Thermal (left) arc tick marks — L/100km */}
         {thermalTicks.map(v => {
           const angle = valueToAngle(v, 0, thermalMax, -135, -5);
@@ -147,12 +159,12 @@ export default function SpeedGauge() {
                 stroke={isMajor ? '#f59e0b' : '#665520'}
                 strokeWidth={isMajor ? 0.8 : 0.4}
                 opacity={isMajor ? 0.6 : 0.4} />
-              {isMajor && (
+              {isMajor && v != 30 &&  (
                 <text
-                  x={polarToXY(0, 0, 49, angle)[0]}
-                  y={polarToXY(0, 0, 49, angle)[1]}
+                  x={polarToXY(0, 0, 46, angle)[0]}
+                  y={polarToXY(0, 0, 46, angle)[1]}
                   fill="#f59e0b"
-                  fontSize="3.5"
+                  fontSize="5.5"
                   textAnchor="middle"
                   dominantBaseline="middle"
                   opacity="0.5"
@@ -177,12 +189,12 @@ export default function SpeedGauge() {
                 stroke={isMajor ? '#00cfff' : '#1a4050'}
                 strokeWidth={isMajor ? 0.8 : 0.4}
                 opacity={isMajor ? 0.6 : 0.4} />
-              {isMajor && (
+              {isMajor && v != 30 && (
                 <text
-                  x={polarToXY(0, 0, 49, angle)[0]}
-                  y={polarToXY(0, 0, 49, angle)[1]}
+                  x={polarToXY(0, 0, 46, angle)[0]}
+                  y={polarToXY(0, 0, 46, angle)[1]}
                   fill="#00cfff"
-                  fontSize="3.5"
+                  fontSize="5.5"
                   textAnchor="middle"
                   dominantBaseline="middle"
                   opacity="0.5"
@@ -191,6 +203,7 @@ export default function SpeedGauge() {
                   {v}
                 </text>
               )}
+
             </g>
           );
         })}

@@ -38,6 +38,7 @@ export class MockStoreBridge {
 
     // ── Standard OBD2 PIDs ──────────────────────────────────────────────────
     u(PID_KEYS.ENGINE_RPM,         s.engineRpm);
+    u(PID_KEYS.ENGINE_LOAD,        s.engineOn ? Math.min(100, (s.engineRpm / 5800) * s.throttlePercent) : 0);
     u(PID_KEYS.VEHICLE_SPEED,      s.speedKmh);
     u(PID_KEYS.COOLANT_TEMP,       s.coolantTempC);
     u(PID_KEYS.INTAKE_AIR_TEMP,    s.intakeTempC);
