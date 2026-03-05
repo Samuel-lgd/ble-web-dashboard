@@ -19,8 +19,7 @@ export default function HvBatterySocGauge() {
   // Battery temp color
   const battTempColor = battTemp > 40 ? '#f97316' : battTemp > 25 ? '#22c55e' : '#3b82f6';
 
-  // const kw = (hvVoltage * hvCurrent) / 1000; // positive = charging (regen), negative = discharging (propulsion)
-  const kw = 1;
+  const kw = (hvVoltage * hvCurrent) / 1000; // positive = charging (regen), negative = discharging (propulsion)
 
   const isCharging = kw > 0.1;
   const kwAbs = Math.abs(kw);
