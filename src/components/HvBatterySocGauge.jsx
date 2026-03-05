@@ -96,18 +96,18 @@ export default function HvBatterySocGauge() {
         <circle cx="0" cy="0" r="3" fill="url(#soc-cap)" stroke="#1a1a1c" strokeWidth="0.3" />
         <circle cx="0" cy="0" r="1.2" fill="#555" />
 
-        {/* SOC value */}
-        <text x="0" y="16" fill="#e0e0e0" fontSize="8" textAnchor="middle"
+        {/* SOC value — large for glanceability */}
+        <text x="0" y="15" fill="#e0e0e0" fontSize="11" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
           {soc.toFixed(1)}
         </text>
-        <text x="0" y="21.5" fill="#555" fontSize="3.5" textAnchor="middle"
+        <text x="0" y="22" fill="#555" fontSize="4" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace' }}>
           SOC %
         </text>
 
         {/* kW label */}
-        <text x="0" y="28" fill={isCharging ? '#22c55e' : '#00cfff'} fontSize="3.5" textAnchor="middle"
+        <text x="0" y="29" fill={isCharging ? '#22c55e' : '#00cfff'} fontSize="4" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace' }}>
           {isCharging ? '⚡' : '▼'} {kwAbs.toFixed(1)} kW
         </text>

@@ -89,12 +89,12 @@ export default function RpmGauge() {
         <circle cx="0" cy="0" r="3" fill="url(#rpm-cap)" stroke="#1a1a1c" strokeWidth="0.3" />
         <circle cx="0" cy="0" r="1.2" fill="#555" />
 
-        {/* RPM numeric display */}
-        <text x="0" y="18" fill="#e0e0e0" fontSize="8" textAnchor="middle"
+        {/* RPM numeric display — large for glanceability */}
+        <text x="0" y="17" fill="#e0e0e0" fontSize="11" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
           {Math.round(rpm)}
         </text>
-        <text x="0" y="23" fill="#555" fontSize="3.5" textAnchor="middle"
+        <text x="0" y="24" fill="#555" fontSize="4" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace' }}>
           RPM
         </text>

@@ -21,7 +21,7 @@ export default function CoolantTempGauge() {
   else if (temp > 70) { barColor = '#f59e0b'; textColor = '#f59e0b'; }
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-between py-0.5">
+    <div className="w-full h-full flex flex-col items-center justify-center gap-0.5 py-0.5">
       {/* Label */}
       <span className="text-[5px] text-gray-500 tracking-wider"
         style={{ fontFamily: 'Orbitron, monospace' }}>

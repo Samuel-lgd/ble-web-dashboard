@@ -11,7 +11,7 @@ export default function AmbientTempBadge() {
   const display = temp !== null ? `${Math.round(temp)}°C` : '—';
 
   return (
-    <div className="flex flex-col items-center justify-end py-0.5">
+    <div className="flex flex-col items-center justify-center py-0.5">
       <div className="trip-pill flex items-center gap-0.5 px-1">
         <span className="text-[8px] opacity-50">☀</span>
         <span className="text-[8px] text-gray-400" style={{ fontFamily: 'Orbitron, monospace' }}>

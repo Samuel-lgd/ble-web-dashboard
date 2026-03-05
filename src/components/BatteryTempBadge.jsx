@@ -16,7 +16,7 @@ export default function BatteryTempBadge() {
   else if (temp > 25) { color = '#22c55e'; bg = 'rgba(34,197,94,0.1)'; }
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-between py-0.5">
+    <div className="w-full h-full flex flex-col items-center justify-center gap-0.5 py-0.5">
       <span className="text-[5px] text-gray-500 tracking-wider"
         style={{ fontFamily: 'Orbitron, monospace' }}>
         BATT
