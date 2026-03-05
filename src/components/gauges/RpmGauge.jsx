@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs } from './gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs, useSmoothedValue } from './gauge-utils.jsx';
 
 /**
  * RPM gauge — large circular with chrome bezel, analog needle, engraved tick marks.
@@ -9,8 +9,9 @@ import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs } from '
  */
 export default function RpmGauge() {
   const rpm = usePid(PID_KEYS.ENGINE_RPM) ?? 0;
+  const smoothRpm = useSmoothedValue(rpm);
 
-  const needleAngle = valueToAngle(rpm, 0, 6000);
+  const needleAngle = valueToAngle(smoothRpm, 0, 6000);
   const ticks = generateTicks(0, 6000, 1000, 500, 42);
   const [nx, ny] = polarToXY(0, 0, 36, needleAngle);
   const [nbx, nby] = polarToXY(0, 0, 4, needleAngle + 180);
@@ -44,11 +45,11 @@ export default function RpmGauge() {
           fill="none" stroke="#ef4444" strokeWidth="2.5" opacity="0.45" strokeLinecap="round" />
 
         {/* Value arc fill — shows current RPM level */}
-        {rpm > 50 && (
+        {smoothRpm > 50 && (
           <path
             d={describeArc(0, 0, 40, valueToAngle(0, 0, 6000), needleAngle)}
             fill="none"
-            stroke={rpm > 5000 ? '#ef4444' : rpm > 4000 ? '#f97316' : '#f59e0b'}
+            stroke={smoothRpm > 5000 ? '#ef4444' : smoothRpm > 4000 ? '#f97316' : '#f59e0b'}
             strokeWidth="2.5"
             strokeLinecap="round"
             opacity="0.6"
@@ -92,7 +93,7 @@ export default function RpmGauge() {
         {/* RPM numeric display — large for glanceability */}
         <text x="0" y="21" fill="#e0e0e0" fontSize="14" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
-          {Math.round(rpm)}
+          {Math.round(smoothRpm)}
         </text>
         <text x="0" y="29" fill="#555" fontSize="4" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace' }}>

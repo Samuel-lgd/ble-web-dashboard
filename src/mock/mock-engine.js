@@ -257,6 +257,11 @@ export class MockEngine {
     this._state.hvSocPercent = clamp(percent, 40, 70);
   }
 
+  /** Override coolant temperature directly (control panel slider). */
+  setCoolantTemp(celsius) {
+    this._state.coolantTempC = clamp(celsius, 20, 120);
+  }
+
   /** Trigger 5 seconds of simulated hard braking / regen. */
   forceRegen() {
     this._forceRegenTicks = Math.ceil(5000 / this._tickMs);

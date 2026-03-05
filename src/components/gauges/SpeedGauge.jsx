@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, BezelDefs } from './gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, BezelDefs, useSmoothedValue } from './gauge-utils.jsx';
 
 /**
  * Speed gauge — the hero centerpiece.
@@ -22,12 +22,15 @@ export default function SpeedGauge() {
   // Derived values
   const l100km = speed > 5 ? (fuelRate / speed) * 100 : 0;
   const kwDraw = Math.max(0, -(hvVoltage * hvCurrent)) / 1000; // only positive when discharging
+  const smoothSpeed   = useSmoothedValue(speed);
+  const smoothL100km  = useSmoothedValue(l100km);
+  const smoothKwDraw  = useSmoothedValue(kwDraw);
 
   // Arc ranges: L/100km 0-30, kW 0-30
   const thermalMax = 30;
   const electricMax = 30;
-  const thermalArcEnd = valueToAngle(Math.min(l100km, thermalMax), 0, thermalMax, -135, -5);
-  const electricArcEnd = valueToAngle(Math.min(kwDraw, electricMax), 0, electricMax, 135, 5);
+  const thermalArcEnd = valueToAngle(Math.min(smoothL100km, thermalMax), 0, thermalMax, -135, -5);
+  const electricArcEnd = valueToAngle(Math.min(smoothKwDraw, electricMax), 0, electricMax, 135, 5);
 
   const isEv = evMode === 1 || evMode === true;
 
@@ -61,13 +64,19 @@ export default function SpeedGauge() {
             <stop offset="0%" stopColor="#00cfff" />
             <stop offset="100%" stopColor="#22d3ee" />
           </linearGradient>
-          <filter id="glow-amber" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          <filter id="glow-amber" filterUnits="userSpaceOnUse" x="-75" y="-75" width="150" height="150">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
           </filter>
-          <filter id="glow-blue" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          <filter id="glow-blue" filterUnits="userSpaceOnUse" x="-75" y="-75" width="150" height="150">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
           </filter>
         </defs>
 
@@ -101,7 +110,7 @@ export default function SpeedGauge() {
           opacity="0.5"
         />
         {/* Thermal arc fill (left) — L/100km intensity */}
-        {l100km > 0.1 && (
+        {smoothL100km > 0.1 && (
           <path
             d={describeArc(0, 0, 60, -135, thermalArcEnd)}
             fill="none"
@@ -123,7 +132,7 @@ export default function SpeedGauge() {
           opacity="0.5"
         />
         {/* Electric arc fill (right) — kW draw intensity */}
-        {kwDraw > 0.1 && (
+        {smoothKwDraw > 0.1 && (
           <path
             d={describeArc(0, 0, 60, 135, electricArcEnd)}
             fill="none"
@@ -137,7 +146,7 @@ export default function SpeedGauge() {
 
         <text
           y={-47}
-          fill={l100km > 0.1 ? '#f59e0b' : '#00cfff'}
+          fill={smoothL100km > 0.1 ? '#f59e0b' : '#00cfff'}
           fontSize="5.5"
           textAnchor="middle"
           dominantBaseline="middle"
@@ -242,7 +251,7 @@ export default function SpeedGauge() {
           dominantBaseline="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}
         >
-          {Math.round(speed)}
+          {Math.round(smoothSpeed)}
         </text>
         <text
           x="0"

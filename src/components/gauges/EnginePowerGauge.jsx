@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs } from './gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs, useSmoothedValue } from './gauge-utils.jsx';
 
 /**
  * Engine Power gauge — shows OBD2 PID 0104 (Calculated Engine Load) as 0–100%.
@@ -11,16 +11,18 @@ import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs } from '
 export default function EnginePowerGauge() {
   const load = usePid(PID_KEYS.ENGINE_LOAD) ?? 0;
   const rpm = usePid(PID_KEYS.ENGINE_RPM) ?? 0;
+  const smoothLoad = useSmoothedValue(load);
+  const smoothRpm = useSmoothedValue(rpm);
 
-  const needleAngle = valueToAngle(load, 0, 100);
+  const needleAngle = valueToAngle(smoothLoad, 0, 100);
   const ticks = generateTicks(0, 100, 10, 5, 42);
   const [nx, ny] = polarToXY(0, 0, 36, needleAngle);
   const [nbx, nby] = polarToXY(0, 0, 4, needleAngle + 180);
 
   const zoneColor =
-    load >= 85 ? '#ef4444' :
-    load >= 70 ? '#f97316' :
-    load >= 40 ? '#f59e0b' :
+    smoothLoad >= 85 ? '#ef4444' :
+    smoothLoad >= 70 ? '#f97316' :
+    smoothLoad >= 40 ? '#f59e0b' :
     '#22c55e';
 
   return (
@@ -55,7 +57,7 @@ export default function EnginePowerGauge() {
           fill="none" stroke="#ef4444" strokeWidth="2.5" opacity="0.45" strokeLinecap="round" />
 
         {/* Value arc fill — shows current load level */}
-        {load > 1 && (
+        {smoothLoad > 1 && (
           <path
             d={describeArc(0, 0, 40, valueToAngle(0, 0, 100), needleAngle)}
             fill="none"
@@ -103,7 +105,7 @@ export default function EnginePowerGauge() {
         {/* RPM numeric display */}
         <text x="0" y="19" fill="#e0e0e0" fontSize="13" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
-          {Math.round(rpm)}
+          {Math.round(smoothRpm)}
         </text>
         <text x="0" y="27" fill="#555" fontSize="4" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace' }}>

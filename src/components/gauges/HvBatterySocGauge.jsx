@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, BezelDefs } from './gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, BezelDefs, useSmoothedValue } from './gauge-utils.jsx';
 
 /**
  * HV Battery SOC gauge — large circular with chrome bezel.
@@ -14,16 +14,19 @@ export default function HvBatterySocGauge() {
   const hvCurrent = usePid(PID_KEYS.HV_BATTERY_CURRENT) ?? 0;
   const hvVoltage = usePid(PID_KEYS.HV_BATTERY_VOLTAGE) ?? 200;
   const battTemp = usePid(PID_KEYS.HV_BATT_TEMP_INTAKE) ?? 0;
+  const smoothSoc = useSmoothedValue(soc);
 
   // Battery temp color
   const battTempColor = battTemp > 40 ? '#f97316' : battTemp > 25 ? '#22c55e' : '#3b82f6';
 
-  const kw = (hvVoltage * hvCurrent) / 1000; // positive = charging (regen), negative = discharging (propulsion)
+  // const kw = (hvVoltage * hvCurrent) / 1000; // positive = charging (regen), negative = discharging (propulsion)
+  const kw = 1;
+
   const isCharging = kw > 0.1;
   const kwAbs = Math.abs(kw);
 
   const gaugeMin = 40, gaugeMax = 70;
-  const socAngle = valueToAngle(Math.max(gaugeMin, Math.min(gaugeMax, soc)), gaugeMin, gaugeMax);
+  const socAngle = valueToAngle(Math.max(gaugeMin, Math.min(gaugeMax, smoothSoc)), gaugeMin, gaugeMax);
 
   // Regen arc spans top semicircle (-90° → +90°): 0 kW parks at 9 o'clock, 20 kW at 3 o'clock
   const kwClamped = isCharging ? Math.min(kwAbs, 20) : 0;
@@ -42,25 +45,26 @@ export default function HvBatterySocGauge() {
 
   return (
     <div className="w-full h-full flex items-center justify-center">
-      <svg viewBox="-50 -50 100 100" className="w-full h-full" style={{ overflow: 'visible' }}>
+      <svg viewBox="-55 -55 110 110" className="w-full h-full" style={{ overflow: 'visible' }}>
         <defs>
           <BezelDefs id="soc" />
-          <linearGradient id="regen-grad" gradientUnits="userSpaceOnUse"
-            x1="-32" y1="0" x2="32" y2="-32">
+          <linearGradient id="regen-grad">
             <stop offset="0%"   stopColor="#00ee66" />
-            <stop offset="50%"  stopColor="#00ff99" />
             <stop offset="100%" stopColor="#77ffcc" />
           </linearGradient>
-          <filter id="regen-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="1.5" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          <filter id="regen-glow" filterUnits="userSpaceOnUse" x="-60" y="-60" width="120" height="120">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
           </filter>
           <linearGradient id="soc-arc-electric" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#0066ff" />
             <stop offset="40%" stopColor="#00aaff" />
             <stop offset="100%" stopColor="#00eeff" />
           </linearGradient>
-          <filter id="soc-arc-glow" x="-30%" y="-30%" width="160%" height="160%">
+          <filter id="soc-arc-glow" filterUnits="userSpaceOnUse" x="-60" y="-60" width="120" height="120">
             <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="blur" />
             <feColorMatrix in="blur" type="matrix"
               values="0 0 0 0 0  0 0 0 0 0.667  0 0 0 0 1  0 0 0 0.5 0" result="blue" />
@@ -73,6 +77,10 @@ export default function HvBatterySocGauge() {
         <circle cx="0" cy="0" r="45" fill="url(#soc-face)" />
         <circle cx="0" cy="0" r="45" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="1.5" />
 
+        {/* Regen arc background track (placeholder) */}
+        <path d={describeArc(0, 0, REGEN_R, -90, 90)}
+          fill="none" stroke="#0a2015" strokeWidth="2.5" opacity="0.4" strokeLinecap="round" />
+
         {/* Main SOC arc track */}
         <path d={describeArc(0, 0, 40, -135, 135)}
           fill="none" stroke="#061020" strokeWidth="3" opacity="0.6" />
@@ -82,6 +90,20 @@ export default function HvBatterySocGauge() {
           fill="none" stroke="url(#soc-arc-electric)" strokeWidth="3" strokeLinecap="round"
           opacity="0.85" filter="url(#soc-arc-glow)" />
 
+        {/* Regen arc gauge — filled arc showing current kW */}
+        {isCharging && kwClamped > 0.1 && (
+          <path d={describeArc(0, 0, REGEN_R, -90, kwAngle)}
+            fill="none" stroke="url(#regen-grad)" strokeWidth="2.5" strokeLinecap="round"
+            opacity="0.8" filter="url(#regen-glow)" />
+        )}
+
+        {/* Regen tick marks */}
+        {regenTicks.map(({ v, ox, oy, ix, iy, isMajor }) => (
+          <line key={v} x1={ix} y1={iy} x2={ox} y2={oy}
+            stroke={isMajor ? '#00cc55' : '#004422'}
+            strokeWidth={isMajor ? 0.8 : 0.4}
+            opacity={isMajor ? 0.6 : 0.4} />
+        ))}
 
         {/* "REGEN" label tucked between arcs at 12 o'clock */}
         <text x="0" y="-22"
@@ -130,7 +152,7 @@ export default function HvBatterySocGauge() {
         {/* SOC value — large for glanceability */}
         <text x="0" y="21" fill="#e0e0e0" fontSize="15" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
-          {soc.toFixed(1)}
+          {smoothSoc.toFixed(1)}
         </text>
         <text x="0" y="29" fill="#555" fontSize="4" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace' }}>

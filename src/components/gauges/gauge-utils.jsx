@@ -2,6 +2,7 @@
  * SVG gauge utility functions.
  * Shared math for arc paths, needle angles, tick marks.
  */
+import { useState, useEffect, useRef } from 'react';
 
 export const START_ANGLE = -135;
 export const END_ANGLE = 135;
@@ -83,6 +84,72 @@ export function Needle({ angle, length = 35, cx = 0, cy = 0, color = '#ff3333' }
       <circle cx={cx} cy={cy} r="1.5" fill="#555" />
     </g>
   );
+}
+
+/**
+ * Smoothly animates a numeric value toward its latest target using
+ * exponential decay. Automatically measures the interval between target
+ * changes (i.e. the effective polling rate) and uses that as the animation
+ * duration so the transition always fills the gap between two data points.
+ *
+ * @param {number} target - The raw/latest value (e.g. from a PID).
+ * @returns {number} The interpolated display value.
+ */
+export function useSmoothedValue(target) {
+  const [displayed, setDisplayed] = useState(target);
+  const displayedRef = useRef(target);
+  const targetRef    = useRef(target);
+  const durationRef  = useRef(300);          // initial guess
+
+  // Track last two target-change timestamps to derive the polling interval
+  const lastChangeRef = useRef(performance.now());
+
+  // On every target change, measure elapsed since the previous change
+  // and use an exponential moving average to smooth the interval estimate.
+  if (target !== targetRef.current) {
+    const now = performance.now();
+    const measured = now - lastChangeRef.current;
+    lastChangeRef.current = now;
+    targetRef.current = target;
+
+    // EMA with α=0.3 — responsive but not jittery
+    if (measured > 30 && measured < 10000) {
+      durationRef.current = durationRef.current * 0.7 + measured * 0.3;
+    }
+  }
+
+  useEffect(() => {
+    let frameId;
+    let lastTs = null;
+
+    function animate(ts) {
+      if (lastTs === null) lastTs = ts;
+      const dt  = Math.min(ts - lastTs, 100);
+      lastTs = ts;
+
+      const tgt  = targetRef.current;
+      const dur  = durationRef.current;
+      const cur  = displayedRef.current;
+      const diff = tgt - cur;
+
+      if (Math.abs(diff) < 0.001) {
+        displayedRef.current = tgt;
+        setDisplayed(tgt);
+        return;
+      }
+
+      const alpha = 1 - Math.exp(-dt / (dur / 3));
+      const next  = cur + diff * alpha;
+      displayedRef.current = next;
+      setDisplayed(next);
+      frameId = requestAnimationFrame(animate);
+    }
+
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, [target]);
+
+  return displayed;
 }
 
 /** Reusable SVG circular gauge shell with chrome bezel */

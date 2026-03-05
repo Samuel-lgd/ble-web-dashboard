@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, BezelDefs } from './gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, BezelDefs, useSmoothedValue } from './gauge-utils.jsx';
 
 /**
  * Battery current gauge — small circular, bidirectional.
@@ -10,17 +10,18 @@ import { valueToAngle, polarToXY, describeArc, BezelDefs } from './gauge-utils.j
  */
 export default function BatteryCurrentGauge() {
   const current = usePid(PID_KEYS.HV_BATTERY_CURRENT) ?? 0;
+  const smoothCurrent = useSmoothedValue(current);
 
   // Range: -60A (charging) to +60A (discharging), center at 0
   const gaugeMin = -60, gaugeMax = 60;
-  const clamped = Math.max(gaugeMin, Math.min(gaugeMax, current));
+  const clamped = Math.max(gaugeMin, Math.min(gaugeMax, smoothCurrent));
   const needleAngle = valueToAngle(clamped, gaugeMin, gaugeMax);
   const centerAngle = valueToAngle(0, gaugeMin, gaugeMax);
   const [nx, ny] = polarToXY(0, 0, 32, needleAngle);
   const [nbx, nby] = polarToXY(0, 0, 3, needleAngle + 180);
 
-  const isCharging = current < -0.5;
-  const isDischarging = current > 0.5;
+  const isCharging = smoothCurrent < -0.5;
+  const isDischarging = smoothCurrent > 0.5;
 
   return (
     <div className="w-full h-full flex items-center justify-center">
@@ -86,7 +87,7 @@ export default function BatteryCurrentGauge() {
         {/* Value */}
         <text x="0" y="14" fill="#e0e0e0" fontSize="6" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 600 }}>
-          {current.toFixed(1)}
+          {smoothCurrent.toFixed(1)}
         </text>
         <text x="0" y="19" fill="#555" fontSize="3" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace' }}>A</text>

@@ -43,6 +43,10 @@ export default function MockControlPanel({ engine }) {
     engine.setSoc(Number(e.target.value));
   }, [engine]);
 
+  const handleCoolantTempChange = useCallback((e) => {
+    engine.setCoolantTemp(Number(e.target.value));
+  }, [engine]);
+
   const handleForceRegen = useCallback(() => engine.forceRegen(), [engine]);
   const handleForceAccel = useCallback(() => engine.forceAccel(), [engine]);
   const handleToggleAC   = useCallback(() => engine.toggleAC(),   [engine]);
@@ -111,6 +115,21 @@ export default function MockControlPanel({ engine }) {
           style={styles.slider}
         />
         <span style={styles.value}>{state.hvSocPercent.toFixed(1)}%</span>
+      </div>
+
+      {/* Coolant Temp slider */}
+      <div style={styles.row}>
+        <span style={styles.label}>Temp</span>
+        <input
+          type="range"
+          min="20"
+          max="120"
+          step="1"
+          value={Math.round(state.coolantTempC)}
+          onChange={handleCoolantTempChange}
+          style={styles.slider}
+        />
+        <span style={styles.value}>{Math.round(state.coolantTempC)}°C</span>
       </div>
 
       {/* Speed readout */}

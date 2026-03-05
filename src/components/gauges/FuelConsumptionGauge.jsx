@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs } from './gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs, useSmoothedValue } from './gauge-utils.jsx';
 
 /**
  * Fuel consumption gauge — circular, smaller, shows trip average L/100km.
@@ -19,16 +19,18 @@ export default function FuelConsumptionGauge() {
   const acLh = acPower ? (acPower / 1000) * 0.3 : 0;
   const acL100km = speed > 5 ? (acLh / speed) * 100 : 0;
   const acActive = acPower !== null && acPower > 0;
+  const smoothL100km = useSmoothedValue(l100km);
+  const smoothAcL100km = useSmoothedValue(acL100km);
 
   const gaugeMin = 0;
   const gaugeMax = 15;
-  const needleAngle = valueToAngle(Math.min(l100km, gaugeMax), gaugeMin, gaugeMax);
+  const needleAngle = valueToAngle(Math.min(smoothL100km, gaugeMax), gaugeMin, gaugeMax);
   const [nx, ny] = polarToXY(0, 0, 32, needleAngle);
   const [nbx, nby] = polarToXY(0, 0, 3, needleAngle + 180);
 
   // A/C ghost zone: overlaid dimmed arc on fuel consumption
-  const acStart = valueToAngle(Math.max(0, l100km - acL100km), gaugeMin, gaugeMax);
-  const acEnd = valueToAngle(l100km, gaugeMin, gaugeMax);
+  const acStart = valueToAngle(Math.max(0, smoothL100km - smoothAcL100km), gaugeMin, gaugeMax);
+  const acEnd = valueToAngle(smoothL100km, gaugeMin, gaugeMax);
 
   const ticks = generateTicks(gaugeMin, gaugeMax, 5, 1, 38);
 
@@ -49,13 +51,13 @@ export default function FuelConsumptionGauge() {
           fill="none" stroke="#1a1510" strokeWidth="2" opacity="0.5" />
 
         {/* Value arc */}
-        {l100km > 0.1 && (
+        {smoothL100km > 0.1 && (
           <path d={describeArc(0, 0, 35, -135, needleAngle)}
             fill="none" stroke="#f59e0b" strokeWidth="2" opacity="0.5" strokeLinecap="round" />
         )}
 
         {/* A/C ghost zone — dimmed overlay showing A/C penalty */}
-        {acActive && acL100km > 0.05 && (
+        {acActive && smoothAcL100km > 0.05 && (
           <path d={describeArc(0, 0, 35, acStart, acEnd)}
             fill="none" stroke="#00cfff" strokeWidth="2.5" opacity="0.25"
             strokeDasharray="1.5 1" />
@@ -88,7 +90,7 @@ export default function FuelConsumptionGauge() {
         {/* Value display */}
         <text x="0" y="14" fill="#e0e0e0" fontSize="7" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 600 }}>
-          {l100km.toFixed(1)}
+          {smoothL100km.toFixed(1)}
         </text>
         <text x="0" y="19" fill="#555" fontSize="3" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace' }}>
@@ -103,7 +105,7 @@ export default function FuelConsumptionGauge() {
         {acActive && (
           <text x="0" y="-18" fill="#00cfff" fontSize="3" textAnchor="middle" opacity="0.6"
             style={{ fontFamily: 'Orbitron, monospace' }}>
-            +{acL100km.toFixed(1)}
+            +{smoothAcL100km.toFixed(1)}
           </text>
         )}
       </svg>
