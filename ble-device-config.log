@@ -1,0 +1,20 @@
+[BLE] Matched profile: VLinker / iCar BLE (18F0 profile)
+BleConnectPanel.jsx:58 ═════════════════════════════════════════
+🔧 BLE DEVICE DEBUG CONFIG 🔧
+═════════════════════════════════════════
+
+📱 BLE Adapter:
+  state          : connected
+  deviceName     : vLinker MC-IOS
+  deviceId       : puL5L3HAn4xiIfQHLkW+8A==
+  connected      : NO
+
+🛠️ ELM327 Configuration:
+  state          : ready
+  version        : unknown
+  protocol       : unknown
+  echo           : OFF
+  headers        : OFF
+  spaces         : OFF
+  timeout        : unknown
+  lineEnding     : unknown

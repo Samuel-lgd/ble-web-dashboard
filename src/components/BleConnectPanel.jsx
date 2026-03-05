@@ -12,6 +12,59 @@ const LOG_COLORS = {
 
 const font = { fontFamily: 'Orbitron, monospace' };
 
+/**
+ * Display debug configuration info when ELM327 is ready
+ */
+function showDebugConfigPrompt(elm, adapter) {
+  const elmInfo = elm ? {
+    state: elm.state,
+    version: elm._version || 'unknown',
+    protocol: elm._protocol || 'unknown',
+    echo: elm._echo ? 'ON' : 'OFF',
+    headers: elm._headers ? 'ON' : 'OFF',
+    spaces: elm._spaces ? 'ON' : 'OFF',
+    timeout: elm._timeout || 'unknown',
+    lineEnding: elm._lineEnding || 'unknown',
+  } : {};
+
+  const adapterInfo = adapter ? {
+    state: adapter.state,
+    deviceName: adapter._device?.name || 'unknown',
+    deviceId: adapter._device?.id || 'unknown',
+    connected: adapter._connection ? 'YES' : 'NO',
+  } : {};
+
+  // Build config string
+  let configStr = '═════════════════════════════════════════\n';
+  configStr += '🔧 BLE DEVICE DEBUG CONFIG 🔧\n';
+  configStr += '═════════════════════════════════════════\n\n';
+  
+  configStr += 'BLE Adapter:\n';
+  for (const [key, val] of Object.entries(adapterInfo)) {
+    configStr += `  ${key.padEnd(15)}: ${val}\n`;
+  }
+  
+  configStr += '\nELM327 Configuration:\n';
+  for (const [key, val] of Object.entries(elmInfo)) {
+    configStr += `  ${key.padEnd(15)}: ${val}\n`;
+  }
+  
+  configStr += '\n═════════════════════════════════════════\n';
+
+  // Show alert with monospace font
+  const message = configStr;
+  
+  // Create a styled modal instead of alert for better display
+  console.log(configStr);
+  
+  // Also try to show in a browser alert (fallback)
+  try {
+    alert(configStr);
+  } catch (e) {
+    // Silent fail if alert is not available
+  }
+}
+
 export default function BleConnectPanel() {
   const { adapter, elm } = useDashboard();
   const [bleState, setBleState] = useState(adapter?.state ?? 'disconnected');
@@ -35,7 +88,11 @@ export default function BleConnectPanel() {
       if (!aliveRef.current) return;
       setElmState(s);
       if (s === 'initializing') pushLog('info', 'ELM327 initialization sequence…');
-      if (s === 'ready')        pushLog('ok',   'ELM327 ready — polling started');
+      if (s === 'ready') {
+        pushLog('ok',   'ELM327 ready — polling started');
+        // Show debug config prompt when ready
+        showDebugConfigPrompt(elm, adapter);
+      }
       if (s === 'error')        pushLog('err',  'ELM327 initialization failed');
     });
 

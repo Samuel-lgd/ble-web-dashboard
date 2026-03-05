@@ -255,6 +255,8 @@ export const TOYOTA_PIDS = [
       return ((b[0] * 256) + b[1]) * 255.9 / 65535 - 50;
     },
   },
+  /*
+  // ❌ UNUSED — Commented out to reduce polling overhead
   {
     pid: '2103',
     name: 'HV Batt Temp 2',
@@ -314,6 +316,7 @@ export const TOYOTA_PIDS = [
       return b[5] - 40;
     },
   },
+  */
   {
     pid: '219B',
     name: 'EV Mode Status',
@@ -336,6 +339,8 @@ export const TOYOTA_PIDS = [
       return b[0];
     },
   },
+  /*
+  // ❌ UNUSED — Commented out to reduce polling overhead
   {
     pid: '2144',
     name: 'HV Ready',
@@ -375,11 +380,14 @@ export const TOYOTA_PIDS = [
       return b[0] / 2;
     },
   },
+  */
 
   // ══════════════════════════════════════════════════════════════════════════
   // ⚙️ MOTOR / GENERATOR (MG1 & MG2)
   // ══════════════════════════════════════════════════════════════════════════
 
+  /*
+  // ❌ UNUSED — Commented out (MG1 not displayed in UI)
   {
     pid: '2101',
     name: 'MG1 RPM (Generator)',
@@ -402,6 +410,7 @@ export const TOYOTA_PIDS = [
       return signed16(b[0], b[1]);
     },
   },
+  */
   {
     pid: '2101',
     name: 'MG2 RPM (Motor)',
@@ -423,6 +432,8 @@ export const TOYOTA_PIDS = [
       return signed16(b[2], b[3]);
     },
   },
+  /*
+  // ❌ UNUSED — Commented out (MG1 torque not displayed in UI)
   {
     pid: '2167',
     name: 'MG1 Torque',
@@ -444,6 +455,7 @@ export const TOYOTA_PIDS = [
       return ((b[0] * 256) + b[1]) / 8 - 4096;
     },
   },
+  */
   {
     pid: '2168',
     name: 'MG2 Torque',
@@ -473,6 +485,8 @@ export const TOYOTA_PIDS = [
   // pids-standard.js using SAE J1979 mode 01. The PIDs below provide
   // Toyota-proprietary high-resolution or additional engine data.
 
+  /*
+  // ❌ UNUSED — Commented out (standard Coolant Temp already available)
   {
     pid: '2101',
     name: 'Coolant Temp (HR)',
@@ -517,6 +531,7 @@ export const TOYOTA_PIDS = [
       return ((b[0] * 256) + b[1]) * 2.047 / 65535;
     },
   },
+  */
 
   // ══════════════════════════════════════════════════════════════════════════
   // ⚡ ENERGY & CONSUMPTION
@@ -525,6 +540,8 @@ export const TOYOTA_PIDS = [
   // 12V system voltage is covered by standard PID 0142 in pids-standard.js.
   // The PIDs below provide additional Toyota-specific energy parameters.
 
+  /*
+  // ❌ UNUSED — Commented out to reduce polling overhead
   {
     pid: '2179',
     name: 'DC-DC Conv Duty',
@@ -567,6 +584,7 @@ export const TOYOTA_PIDS = [
       return ((b[0] * 256) + b[1]) / 100 - 327.68;
     },
   },
+  */
 
   // ══════════════════════════════════════════════════════════════════════════
   // 🚗 VEHICLE DYNAMICS
@@ -575,6 +593,8 @@ export const TOYOTA_PIDS = [
   // Vehicle speed and accelerator pedal position are covered by standard PIDs
   // 010D and 0149 in pids-standard.js.
 
+  /*
+  // ❌ UNUSED — Commented out (wheel speeds not displayed in UI)
   {
     pid: '2103',
     name: 'FL Wheel Speed',
@@ -676,6 +696,7 @@ export const TOYOTA_PIDS = [
       return ((b[0] * 256) + b[1]) * 4;
     },
   },
+  */
   {
     pid: '2168',
     name: 'Regen Brake Torque',
@@ -698,34 +719,8 @@ export const TOYOTA_PIDS = [
       return torque < 0 ? -torque : 0;
     },
   },
-  {
-    pid: '2101',
-    name: 'Regen Torque Request',
-    unit: 'Nm',
-    interval: POLLING.FAST,
-    protocol: 'toyota',
-    header: '7B0',
-    source: 'No single verifiable source — inferred from Skid Control ECU diagnostic structure',
-    verified: false,
-    calibrationNeeded: true,
-    notes:
-      'PLACEHOLDER: Requested regenerative brake torque from Skid Control ECU. ' +
-      'The brake ECU calculates how much regen to request from the HV ECU based on ' +
-      'brake pedal position. No verified PID/byte position available. ' +
-      'Bytes 4-5 of PID 2101 on 7B0 is an educated guess. ' +
-      'Capture raw response while braking at various intensities to locate this value. ' +
-      'Compare against actual regen torque (MG2 Torque negative) to verify.',
-    parse(raw) {
-      const b = parseToyotaBytes(raw, 2);
-      if (!b || b.length < 6) return null;
-      return ((b[4] * 256) + b[5]) / 8;
-    },
-  },
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // 🔧 TRANSMISSION & TRACTION
-  // ══════════════════════════════════════════════════════════════════════════
-
+  /*
+  // ❌ UNUSED — Commented out (transmission data not displayed in UI)
   {
     pid: '2141',
     name: 'Shift Position',
@@ -837,6 +832,7 @@ export const TOYOTA_PIDS = [
       return (b[6] >> 1) & 1;
     },
   },
+  */
 ];
 
 // ── Auto-populate rxHeader from CAN address map ─────────────────────────────

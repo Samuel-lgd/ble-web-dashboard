@@ -92,6 +92,8 @@ export const STANDARD_PIDS = [
       return b[0] - 40;
     },
   },
+  /*
+  // ❌ UNUSED — Commented out to reduce polling overhead
   {
     pid: '010F',
     name: 'Intake Air Temp',
@@ -116,6 +118,7 @@ export const STANDARD_PIDS = [
       return (b[0] * 100) / 255;
     },
   },
+  */
   {
     pid: '015B',
     name: 'Hybrid Battery SOC',
@@ -128,6 +131,8 @@ export const STANDARD_PIDS = [
       return (b[0] * 100) / 255;
     },
   },
+  /*
+  // ❌ UNUSED — Commented out to reduce polling overhead
   {
     pid: '015C',
     name: 'Engine Oil Temp',
@@ -140,6 +145,7 @@ export const STANDARD_PIDS = [
       return b[0] - 40;
     },
   },
+  */
   {
     pid: '015E',
     name: 'Fuel Rate',
@@ -152,6 +158,8 @@ export const STANDARD_PIDS = [
       return ((b[0] * 256) + b[1]) / 20;
     },
   },
+  /*
+  // ❌ UNUSED — Commented out to reduce polling overhead
   {
     pid: '0143',
     name: 'Absolute Load',
@@ -206,6 +214,7 @@ export const STANDARD_PIDS = [
       return ((b[0] * 256) + b[1]) / 1000;
     },
   },
+  */
   {
     pid: '012F',
     name: 'Fuel Tank Level',
