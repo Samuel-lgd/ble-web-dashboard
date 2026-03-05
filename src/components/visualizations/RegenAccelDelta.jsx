@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { usePid } from './DashboardContext';
-import { PID_KEYS } from '../pid-keys.js';
-import { BezelDefs } from './gauge-utils.jsx';
+import { usePid } from '../DashboardContext';
+import { PID_KEYS } from '../../pid-keys.js';
+import { BezelDefs } from '../gauges/gauge-utils.jsx';
 
 /**
  * SOC Delta Tracker — full instrument panel.
@@ -147,7 +147,7 @@ export default function RegenAccelDelta() {
   };
 
   return (
-      <svg viewBox="0 0 160 120" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+      <svg viewBox="0 0 160 120" className="w-full h-full" style={{ overflow: 'visible' }} preserveAspectRatio="xMidYMid meet">
         <defs>
           <BezelDefs id="sdt" />
           <linearGradient id="sdt-face" x1="0" y1="0" x2="0" y2="1">

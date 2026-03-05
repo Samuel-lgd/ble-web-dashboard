@@ -1,6 +1,6 @@
 import React from 'react';
-import { usePid } from './DashboardContext';
-import { PID_KEYS } from '../pid-keys.js';
+import { usePid } from '../DashboardContext';
+import { PID_KEYS } from '../../pid-keys.js';
 import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs } from './gauge-utils.jsx';
 
 /**

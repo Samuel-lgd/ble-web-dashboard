@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useDashboard } from './DashboardContext';
+import { useDashboard } from '../DashboardContext';
 
 const TAG_COLORS = {
   highway: 'bg-blue-900 text-blue-300',
@@ -55,9 +55,9 @@ export default function TripHistory({ onBack }) {
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <button onClick={onBack}
-            className="text-[10px] px-2 py-0.5 rounded border border-gray-700 text-gray-400 hover:text-white bg-black/40"
+            className="cluster-back-btn"
             style={{ fontFamily: 'Orbitron, monospace' }}>
-            ← BACK
+            ◀ DASH
           </button>
           <h2 className="text-sm font-bold text-gray-300" style={{ fontFamily: 'Orbitron, monospace' }}>
             TRIP HISTORY

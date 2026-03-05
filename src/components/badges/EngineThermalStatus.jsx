@@ -1,6 +1,6 @@
 import React from 'react';
-import { usePid } from './DashboardContext';
-import { PID_KEYS } from '../pid-keys.js';
+import { usePid } from '../DashboardContext';
+import { PID_KEYS } from '../../pid-keys.js';
 
 /**
  * Engine thermal status — replaces FuelConsumptionGauge in left column.
@@ -45,7 +45,7 @@ export default function EngineThermalStatus() {
 
   return (
     <div className="w-full h-full flex items-center justify-center">
-      <svg viewBox="-44 -44 88 88" className="w-full h-full">
+      <svg viewBox="-44 -44 88 88" className="w-full h-full" style={{ overflow: 'visible' }}>
         <defs>
           <radialGradient id="eng-face" cx="50%" cy="48%" r="50%">
             <stop offset="0%" stopColor="#14141a" />
@@ -59,7 +59,7 @@ export default function EngineThermalStatus() {
             <stop offset="75%" stopColor="#3a3a3e" />
             <stop offset="100%" stopColor="#4a4a50" />
           </linearGradient>
-          <filter id="eng-glow">
+          <filter id="eng-glow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="1.5" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
@@ -132,16 +132,19 @@ export default function EngineThermalStatus() {
           );
         })()}
 
-        {/* Temperature marker dot on the arc */}
+        {/* Temperature marker — small red rectangle on the arc */}
         {(() => {
           const tempAngle = -135 + (Math.min(clamped, 120) / 120) * 270;
           const [mx, my] = polarToXY(0, 0, 35, tempAngle);
+          const rad = ((tempAngle - 90) * Math.PI) / 180;
+          const rotDeg = tempAngle;
           return (
-            <circle cx={mx} cy={my} r="2.5" fill={phase.color} opacity="0.9">
-              {(phase.label === 'COLD' || phase.label === 'CRITICAL') && (
-                <animate attributeName="opacity" values="0.9;0.4;0.9" dur="1.5s" repeatCount="indefinite" />
-              )}
-            </circle>
+            <rect
+              x={mx - 1} y={my - 3} width="2" height="6" rx="0.5"
+              fill="#ef4444" opacity="0.95"
+              transform={`rotate(${rotDeg}, ${mx}, ${my})`}
+            >
+            </rect>
           );
         })()}
 
@@ -181,7 +184,7 @@ export default function EngineThermalStatus() {
           fill={phase.color}
           fontSize="5"
           textAnchor="middle"
-          dominantBaseline="central"
+          dominantBaseline="reset-size"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}
         >
           {phase.label}

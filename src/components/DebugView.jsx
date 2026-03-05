@@ -1,41 +1,46 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDashboard } from './DashboardContext';
+import { STANDARD_PIDS } from '../../pids-standard.js';
+import { TOYOTA_PIDS } from '../../pids-toyota.js';
+
+const pidKey = (pid) => `${pid.protocol}:${pid.header || ''}:${pid.pid}:${pid.name}`;
+
+const ALL_PIDS = [...STANDARD_PIDS, ...TOYOTA_PIDS].map(pid => ({
+  key: pidKey(pid),
+  name: pid.name,
+  unit: pid.unit,
+  protocol: pid.protocol,
+  pid: pid.pid,
+  header: pid.header || '',
+}));
 
 /**
- * Debug view — replicates the legacy PID table + raw log in React.
- * Also includes trip history access as requested.
+ * Debug view — shows all defined PIDs with live values from the store.
  */
-export default function DebugView() {
-  const { store, tripManager } = useDashboard();
-  const [pids, setPids] = useState({});
-  const [trips, setTrips] = useState([]);
+export default function DebugView({ onBack }) {
+  const { store } = useDashboard();
+  const [liveValues, setLiveValues] = useState({});
   const aliveRef = useRef(true);
 
   useEffect(() => {
     aliveRef.current = true;
 
-    // Subscribe to all store updates
     const handler = (key, entry) => {
       if (!aliveRef.current) return;
-      setPids(prev => ({ ...prev, [key]: { value: entry.value, timestamp: entry.timestamp } }));
+      setLiveValues(prev => ({ ...prev, [key]: { value: entry.value, timestamp: entry.timestamp } }));
     };
     store.onChange(handler);
 
-    // Initial load of all current values
+    // Seed with whatever the store already has
     const initial = {};
     for (const key of store.keys()) {
       const entry = store.get(key);
       if (entry) initial[key] = { value: entry.value, timestamp: entry.timestamp };
     }
-    setPids(initial);
-
-    // Load trip history
-    tripManager.getTrips().then(t => {
-      if (aliveRef.current) setTrips(t);
-    });
+    setLiveValues(initial);
 
     return () => { aliveRef.current = false; };
-  }, [store, tripManager]);
+  }, [store]);
 
   // Refresh ages periodically
   const [now, setNow] = useState(Date.now());
@@ -44,32 +49,40 @@ export default function DebugView() {
     return () => clearInterval(iv);
   }, []);
 
-  const sortedKeys = Object.keys(pids).sort();
-
   return (
     <div className="h-full w-full flex flex-col p-2 overflow-hidden">
-      <h2 className="text-sm font-bold text-gray-400 mb-1" style={{ fontFamily: 'Orbitron, monospace' }}>
-        DEBUG — PID DATA
-      </h2>
+      <div className="flex items-center gap-2 mb-1">
+        <button onClick={onBack}
+          className="cluster-back-btn"
+          style={{ fontFamily: 'Orbitron, monospace' }}>
+          ◀ DASH
+        </button>
+        <h2 className="text-sm font-bold text-gray-400" style={{ fontFamily: 'Orbitron, monospace' }}>
+          DEBUG — PID DATA
+        </h2>
+      </div>
 
       <div className="flex-1 overflow-auto trip-scroll">
         <table className="debug-table w-full">
           <thead>
             <tr>
               <th>Protocol</th>
+              <th>PID</th>
               <th>Name</th>
               <th>Value</th>
               <th>Age</th>
             </tr>
           </thead>
           <tbody>
-            {sortedKeys.map(key => {
-              const parts = key.split(':');
-              const protocol = parts[0];
-              const name = parts[parts.length - 1];
-              const { value, timestamp } = pids[key];
+            {ALL_PIDS.map(({ key, name, unit, protocol, pid, header }) => {
+              const live = liveValues[key];
+              const value = live?.value ?? null;
+              const timestamp = live?.timestamp ?? null;
               const age = timestamp ? ((now - timestamp) / 1000).toFixed(1) + 's' : '--';
-              const formatted = value === null ? '--' : (Number.isInteger(value) ? value : (value?.toFixed?.(1) ?? '--'));
+              const formatted = value === null
+                ? '--'
+                : (Number.isInteger(value) ? value : (value?.toFixed?.(2) ?? '--'));
+              const display = value === null ? '--' : `${formatted}${unit ? ' ' + unit : ''}`;
 
               return (
                 <tr key={key}>
@@ -79,9 +92,13 @@ export default function DebugView() {
                     }`}>
                       {protocol === 'toyota' ? 'TOYOTA' : 'STD'}
                     </span>
+                    {header && (
+                      <span className="ml-1 text-[9px] text-gray-500">{header}</span>
+                    )}
                   </td>
+                  <td className="text-gray-500 font-mono text-[10px]">{pid}</td>
                   <td className="text-gray-300">{name}</td>
-                  <td className="pid-value">{formatted}</td>
+                  <td className="pid-value">{display}</td>
                   <td className="text-gray-500">{age}</td>
                 </tr>
               );
@@ -89,26 +106,6 @@ export default function DebugView() {
           </tbody>
         </table>
       </div>
-
-      {/* Trip history section */}
-      {trips.length > 0 && (
-        <div className="mt-2 border-t border-gray-800 pt-1">
-          <h3 className="text-xs font-bold text-gray-500 mb-1">TRIP HISTORY ({trips.length})</h3>
-          <div className="max-h-[100px] overflow-auto trip-scroll text-[10px]">
-            {trips.map(t => (
-              <div key={t.id} className="flex gap-2 py-0.5 border-b border-gray-800 text-gray-400">
-                <span>{new Date(t.startTime).toLocaleDateString()}</span>
-                <span>{(t.stats?.distanceKm ?? 0).toFixed(1)} km</span>
-                <span>{(t.stats?.avgConsumptionL100km ?? 0).toFixed(1)} L/100</span>
-                <span className="text-amber-500">{(t.stats?.fuelCostEur ?? 0).toFixed(2)}€</span>
-                {t.meta?.tags?.map(tag => (
-                  <span key={tag} className="text-[8px] px-1 rounded bg-gray-800 text-gray-500">{tag}</span>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

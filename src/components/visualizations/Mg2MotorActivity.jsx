@@ -1,7 +1,7 @@
 import React from 'react';
-import { usePid } from './DashboardContext';
-import { PID_KEYS } from '../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, BezelDefs } from './gauge-utils.jsx';
+import { usePid } from '../DashboardContext';
+import { PID_KEYS } from '../../pid-keys.js';
+import { valueToAngle, polarToXY, describeArc, BezelDefs } from '../gauges/gauge-utils.jsx';
 
 /**
  * MG2 Motor activity — arc gauge showing drive motor torque output in Nm.

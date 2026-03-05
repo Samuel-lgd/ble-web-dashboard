@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AreaChart, Area, ResponsiveContainer, YAxis } from 'recharts';
-import { usePidHistory, usePid } from './DashboardContext';
-import { PID_KEYS } from '../pid-keys.js';
+import { usePidHistory, usePid } from '../DashboardContext';
+import { PID_KEYS } from '../../pid-keys.js';
 
 /**
  * Consumption sparkline — slim area chart showing last 5 minutes of L/100km.

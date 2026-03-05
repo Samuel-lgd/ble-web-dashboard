@@ -10,7 +10,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
  * @param {{ engine: import('./mock-engine.js').MockEngine }} props
  */
 export default function MockControlPanel({ engine }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [state, setState] = useState(engine.getState());
   const rafRef = useRef(null);
 
@@ -190,8 +190,9 @@ const styles = {
     zIndex:     9999,
     background: 'rgba(13,17,23,0.9)',
     border:     '1px solid #30363d',
-    borderRadius: '4px',
-    padding:    '3px 8px',
+    borderRadius: '6px',
+    padding:    '10px 18px',
+    fontSize:   '13px',
     color:      '#f59e0b',
     cursor:     'pointer',
     fontWeight: 'bold',
@@ -223,10 +224,12 @@ const styles = {
   closeBtn: {
     ...BASE,
     background:  'transparent',
-    border:      'none',
-    color:       '#666',
+    border:      '1px solid #30363d',
+    borderRadius: '4px',
+    color:       '#888',
     cursor:      'pointer',
-    padding:     '0 2px',
+    padding:     '4px 8px',
+    fontSize:    '14px',
     flexShrink:  0,
   },
   row: {

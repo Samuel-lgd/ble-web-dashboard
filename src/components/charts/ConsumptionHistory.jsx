@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { LineChart, Line, ResponsiveContainer, YAxis, ReferenceLine } from 'recharts';
-import { usePidHistory, useTripData } from './DashboardContext';
-import { PID_KEYS } from '../pid-keys.js';
+import { usePidHistory, useTripData } from '../DashboardContext';
+import { PID_KEYS } from '../../pid-keys.js';
 
 /**
  * Average consumption panel — promoted to a central, prominent component.
@@ -67,30 +67,39 @@ export default function ConsumptionHistory() {
   const font = { fontFamily: 'Orbitron, monospace' };
 
   return (
-    <div className="w-full h-full panel-recess relative overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-1.5 pt-1 flex-shrink-0">
+    <div className="w-full h-full relative overflow-hidden flex flex-col"
+      style={{
+        background: 'linear-gradient(to bottom, #0e0e14, #08080c)',
+        border: '1px solid #1a1a1e',
+        borderRadius: '6px',
+        boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4), 0 0 1px rgba(255,255,255,0.03)',
+      }}>
+      {/* Header row with label left & value pill top-right */}
+      <div className="flex items-center justify-between px-2 pt-1 flex-shrink-0">
         <span className="text-[6px] text-amber-700 tracking-wider" style={font}>
           AVG CONSUMPTION
         </span>
-        <span className="text-[7px]" style={{ ...font, color: trendColor }}>
-          {trendArrow}
-        </span>
-      </div>
-
-      {/* Large trip average — dominant element */}
-      <div className="flex items-baseline justify-center gap-0.5 flex-shrink-0 pt-0.5">
-        <span className="text-[22px] font-bold leading-none"
-          style={{ ...font, fontWeight: 700, color: '#e0e0e0' }}>
-          {tripAvg > 0 ? tripAvg.toFixed(1) : '—'}
-        </span>
-        <span className="text-[7px] text-amber-600 self-end pb-0.5" style={font}>
-          L/100
-        </span>
+        <div className="flex items-baseline gap-0.5 px-1.5 py-0.5"
+          style={{
+            background: 'rgba(245,158,11,0.08)',
+            border: '1px solid rgba(245,158,11,0.25)',
+            borderRadius: '4px',
+          }}>
+          <span className="text-[17px] font-bold leading-none"
+            style={{ ...font, fontWeight: 700, color: '#e0e0e0' }}>
+            {tripAvg > 0 ? tripAvg.toFixed(2) : '—'}
+          </span>
+          <span className="text-[6px] text-amber-600" style={font}>
+            L/100
+          </span>
+          <span className="text-[7px] ml-0.5" style={{ ...font, color: trendColor }}>
+            {trendArrow}
+          </span>
+        </div>
       </div>
 
       {/* Trend graph — running trip average over time */}
-      <div className="flex-1 min-h-0 px-0.5 pb-0.5">
+      <div className="flex-1 min-h-0 px-1 pb-1 pt-0.5">
         {data.length > 2 ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={data} margin={{ top: 2, right: 2, bottom: 0, left: 2 }}>

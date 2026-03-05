@@ -1,6 +1,6 @@
 import React from 'react';
-import { usePid } from './DashboardContext';
-import { PID_KEYS } from '../pid-keys.js';
+import { usePid } from '../DashboardContext';
+import { PID_KEYS } from '../../pid-keys.js';
 import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs } from './gauge-utils.jsx';
 
 /**
@@ -17,7 +17,7 @@ export default function RpmGauge() {
 
   return (
     <div className="w-full h-full flex items-center justify-center">
-      <svg viewBox="-50 -50 100 100" className="w-full h-full">
+      <svg viewBox="-50 -50 100 100" className="w-full h-full" style={{ overflow: 'visible' }}>
         <defs>
           <BezelDefs id="rpm" />
           <radialGradient id="rpm-needle-glow" cx="50%" cy="50%" r="50%">
@@ -90,11 +90,11 @@ export default function RpmGauge() {
         <circle cx="0" cy="0" r="1.2" fill="#555" />
 
         {/* RPM numeric display — large for glanceability */}
-        <text x="0" y="17" fill="#e0e0e0" fontSize="11" textAnchor="middle"
+        <text x="0" y="21" fill="#e0e0e0" fontSize="14" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
           {Math.round(rpm)}
         </text>
-        <text x="0" y="24" fill="#555" fontSize="4" textAnchor="middle"
+        <text x="0" y="29" fill="#555" fontSize="4" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace' }}>
           RPM
         </text>

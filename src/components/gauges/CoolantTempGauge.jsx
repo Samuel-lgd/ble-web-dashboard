@@ -1,6 +1,6 @@
 import React from 'react';
-import { usePid } from './DashboardContext';
-import { PID_KEYS } from '../pid-keys.js';
+import { usePid } from '../DashboardContext';
+import { PID_KEYS } from '../../pid-keys.js';
 
 /**
  * Coolant temperature — vertical bar gauge styled like a thermometer.

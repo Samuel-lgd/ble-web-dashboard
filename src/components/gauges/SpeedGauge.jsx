@@ -1,6 +1,6 @@
 import React from 'react';
-import { usePid } from './DashboardContext';
-import { PID_KEYS } from '../pid-keys.js';
+import { usePid } from '../DashboardContext';
+import { PID_KEYS } from '../../pid-keys.js';
 import { valueToAngle, polarToXY, describeArc, BezelDefs } from './gauge-utils.jsx';
 
 /**
@@ -21,7 +21,7 @@ export default function SpeedGauge() {
 
   // Derived values
   const l100km = speed > 5 ? (fuelRate / speed) * 100 : 0;
-  const kwDraw = Math.abs(hvVoltage * hvCurrent) / 1000;
+  const kwDraw = Math.max(0, -(hvVoltage * hvCurrent)) / 1000; // only positive when discharging
 
   // Arc ranges: L/100km 0-30, kW 0-30
   const thermalMax = 30;
@@ -50,7 +50,7 @@ export default function SpeedGauge() {
 
   return (
     <div className="w-full h-full flex items-center justify-center">
-      <svg viewBox="-82 -82 164 164" className="w-full h-full max-h-full">
+      <svg viewBox="-70 -70 140 140" className="w-full h-full" style={{ overflow: 'visible' }}>
         <defs>
           <BezelDefs id="speed" />
           <linearGradient id="thermal-arc" x1="0" y1="0" x2="0" y2="1">
@@ -61,11 +61,11 @@ export default function SpeedGauge() {
             <stop offset="0%" stopColor="#00cfff" />
             <stop offset="100%" stopColor="#22d3ee" />
           </linearGradient>
-          <filter id="glow-amber">
+          <filter id="glow-amber" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="2" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
-          <filter id="glow-blue">
+          <filter id="glow-blue" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="2" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
           </filter>
@@ -154,7 +154,7 @@ export default function SpeedGauge() {
                   fill="#f59e0b"
                   fontSize="3.5"
                   textAnchor="middle"
-                  dominantBaseline="central"
+                  dominantBaseline="middle"
                   opacity="0.5"
                   style={{ fontFamily: 'Orbitron, monospace' }}
                 >
@@ -184,7 +184,7 @@ export default function SpeedGauge() {
                   fill="#00cfff"
                   fontSize="3.5"
                   textAnchor="middle"
-                  dominantBaseline="central"
+                  dominantBaseline="middle"
                   opacity="0.5"
                   style={{ fontFamily: 'Orbitron, monospace' }}
                 >
@@ -202,7 +202,7 @@ export default function SpeedGauge() {
           fill="#f59e0b"
           fontSize="9"
           textAnchor="end"
-          dominantBaseline="central"
+          dominantBaseline="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 600 }}
         >
           {l100km.toFixed(1)}
@@ -226,7 +226,7 @@ export default function SpeedGauge() {
           fill="#e0e0e0"
           fontSize="28"
           textAnchor="middle"
-          dominantBaseline="central"
+          dominantBaseline="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}
         >
           {Math.round(speed)}
@@ -249,7 +249,7 @@ export default function SpeedGauge() {
           fill="#00cfff"
           fontSize="9"
           textAnchor="start"
-          dominantBaseline="central"
+          dominantBaseline="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 600 }}
         >
           {kwDraw.toFixed(1)}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTripData } from './DashboardContext';
+import { useTripData } from '../DashboardContext';
 
 /**
  * Trip bar — full-width slim bar at the bottom, spanning all three columns.
