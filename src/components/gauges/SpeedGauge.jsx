@@ -217,10 +217,11 @@ export default function SpeedGauge() {
           );
         })}
 
-        {/* Live L/100km — left of speed, amber
+        {/* Live L/100km — left of speed, amber */}
         <text
-          x="-28"
-          y="-8"
+          x="-8"
+          y="50"
+          opacity="0.85"          
           fill="#f59e0b"
           fontSize="9"
           textAnchor="end"
@@ -230,16 +231,16 @@ export default function SpeedGauge() {
           {l100km.toFixed(1)}
         </text>
         <text
-          x="-28"
-          y="1"
+          x="-8"
+          y="57"
+          opacity="0.6"          
           fill="#f59e0b"
           fontSize="3.5"
           textAnchor="end"
-          opacity="0.6"
           style={{ fontFamily: 'Orbitron, monospace' }}
         >
           L/100
-        </text> */}
+        </text>
 
         {/* Large speed number — centered */}
         <text
@@ -264,10 +265,11 @@ export default function SpeedGauge() {
           km/h
         </text>
 
-        {/* Live kW — right of speed, electric blue
+        Live kW — right of speed, electric blue
         <text
-          x="28"
-          y="-8"
+          x="8"
+          y="50"
+          opacity="0.85"
           fill="#00cfff"
           fontSize="9"
           textAnchor="start"
@@ -277,8 +279,8 @@ export default function SpeedGauge() {
           {kwDraw.toFixed(1)}
         </text>
         <text
-          x="28"
-          y="1"
+          x="8"
+          y="57"
           fill="#00cfff"
           fontSize="3.5"
           textAnchor="start"
@@ -286,7 +288,7 @@ export default function SpeedGauge() {
           style={{ fontFamily: 'Orbitron, monospace' }}
         >
           kW
-        </text> */}
+        </text>
 
         {/* EV / HV mode badge — centered below speed, more prominent */}
         <rect

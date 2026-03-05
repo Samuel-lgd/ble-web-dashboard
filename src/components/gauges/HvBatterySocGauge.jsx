@@ -78,7 +78,7 @@ export default function HvBatterySocGauge() {
 
         {/* Regen arc background track (placeholder) */}
         <path d={describeArc(0, 0, REGEN_R, -90, 90)}
-          fill="none" stroke="#0a2015" strokeWidth="2.5" opacity="0.4" strokeLinecap="round" />
+          fill="none" stroke="#0a2015" strokeWidth="2.5" opacity="1" strokeLinecap="round" />
 
         {/* Main SOC arc track */}
         <path d={describeArc(0, 0, 40, -135, 135)}
@@ -99,9 +99,9 @@ export default function HvBatterySocGauge() {
         {/* Regen tick marks */}
         {regenTicks.map(({ v, ox, oy, ix, iy, isMajor }) => (
           <line key={v} x1={ix} y1={iy} x2={ox} y2={oy}
-            stroke={isMajor ? '#00cc55' : '#004422'}
+            stroke={'#00cc55' }
             strokeWidth={isMajor ? 0.8 : 0.4}
-            opacity={isMajor ? 0.6 : 0.4} />
+            opacity={0.6} />
         ))}
 
         {/* "REGEN" label tucked between arcs at 12 o'clock */}

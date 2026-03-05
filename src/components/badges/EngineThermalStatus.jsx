@@ -190,18 +190,6 @@ export default function EngineThermalStatus() {
           {phase.label}
         </text>
 
-        {/* Phase description */}
-        <text
-          x="0" y="19"
-          fill={phase.color}
-          fontSize="3.5"
-          textAnchor="middle"
-          opacity="0.5"
-          style={{ fontFamily: 'Orbitron, monospace' }}
-        >
-          {phase.desc}
-        </text>
-
         {/* ENGINE label */}
         <text
           x="0" y="28"
