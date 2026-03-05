@@ -1,6 +1,6 @@
 {
-  "name": "BLE OBD2 Dashboard",
-  "short_name": "OBD2",
+  "name": "OBD2 Dashboard",
+  "short_name": "Dashboard",
   "start_url": "/ble-web-dashboard/",
   "scope": "/ble-web-dashboard/",
   "display": "standalone",

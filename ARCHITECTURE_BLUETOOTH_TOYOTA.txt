@@ -1,0 +1,433 @@
+================================================================================
+EXPLICATION TECHNIQUE : CONNEXION BLUETOOTH ET ACCÈS AUX CODES TOYOTA
+PWA BLE Web Dashboard - Toyota Yaris Hybrid
+================================================================================
+
+1. COUCHE 1 : WEB BLUETOOTH (COUCHE TRANSPORT)
+================================================================================
+
+Structure :
+  BLEAdapter.js
+  ├─ navigator.bluetooth.requestDevice()  [API Web Bluetooth]
+  │  └─ Découvre & affiche les périphériques BLE disponibles
+  ├─ GATT Connection
+  │  └─ Se connecte au service UUID 0xFFF0 (dongle ELM327)
+  └─ GATT Characteristics
+     ├─ Write (0xFFF2)  → Envoi de commandes AT/OBD
+     └─ Notify (0xFFF1) ← Réception des réponses (mode notifications)
+
+Point clé : Le dongle Bluetooth est un ELM327 v1.5 (adaptateur OBD2 → BLE) 
+qui fonctionne via le protocole GATT (Generic Attribute Protocol). Aucune 
+donnée n'est envoyée directement à Toyota ; c'est un adaptateur classique OBD-II.
+
+
+2. COUCHE 2 : ELM327 (PROTOCOLE AT)
+================================================================================
+
+Le fichier elm327.js gère le protocole AT du dongle :
+
+Séquence d'initialisation :
+  ATZ       # Reset du dongle
+  ATE0      # Désactiver l'écho
+  ATH0      # Désactiver l'affichage des headers
+  ATSP0     # Protocol automatique (détecte CAN 500K)
+  ATL0      # Pas de retours à la ligne
+  ATAT1     # Adaptative timing
+
+Après initialisation, le dongle devient "prêt" et peut accepter des 
+commandes OBD-II.
+
+Fonctionnement du queue :
+  - Les commandes sont mises en file d'attente
+  - Exécution une à une (jamais parallèle)
+  - Chaque commande attend une réponse avant de passer à la suivante
+  - Timeout configurable (2000ms par défaut)
+  - Retries automatiques en cas de timeout
+
+
+3. COUCHE 3 : CODES MÉTIERS (PIDs) - STANDARD VS TOYOTA
+================================================================================
+
+A. PIDs Standard (Mode 01)
+   Fichier : pids-standard.js
+
+   Exemple : Mode 01, PID 0C (RPM)
+     Commande : 01 0C
+     Réponse du véhicule : 41 0C [HIGH_BYTE] [LOW_BYTE]
+     Formule : (HIGH * 256 + LOW) / 4
+
+   Ces PIDs ne nécessitent PAS de commande ATSH 
+   (les adresses CAN sont implicites).
+
+B. PIDs Toyota Propriétaires (Mode 21 & 22)
+   Fichier : pids-toyota.js
+
+   Toyota utilise un protocole propriétaire avec des adresses CAN 
+   spécifiques pour chaque ECU :
+
+   ┌──────────┬──────────────┬─────────┬────────────────────────────┐
+   │ Adresse  │ ECU          │ Réponse │ Données                    │
+   ├──────────┼──────────────┼─────────┼────────────────────────────┤
+   │ 7E0→7E8  │ Engine ECU   │ 7E8     │ RPM, coolant, injection    │
+   │ 7E2→7EA  │ HV ECU       │ 7EA     │ MG1/MG2, batterie hybrid   │
+   │ 7E4→7EC  │ Battery ECU  │ 7EC     │ SOC, tensions, températures│
+   │ 7B0→7B8  │ Skid Control │ 7B8     │ Vitesse roues, freinage    │
+   └──────────┴──────────────┴─────────┴────────────────────────────┘
+
+   FORMAT DE RÉPONSE MODE 21 :
+     61 XX [byte0] [byte1] [byte2] ... [byteN]
+     ↑   ↑
+     |   └─ Echo du PID
+     └───── Mode 21 response
+
+   EXEMPLE RÉEL : Batterie SOC
+     Commande : ATSH 7E4; 2101
+     Réponse   : 61 01 [data...] [0x19]
+     Parse     : byte[6] / 2 = SOC %
+
+
+4. COUCHE 4 : ÉCHANGE DE HEADERS AVEC ATSH MANAGER
+================================================================================
+
+C'EST LE POINT CRUCIAL !
+
+Fichier : atsh-manager.js
+
+Le dongle ELM327 utilise les "headers" CAN pour router les commandes 
+vers le bon ECU. Par défaut (ATSP0), il utilise les adresses standard OBD.
+Pour accéder aux ECUs Toyota spécifiques, il faut :
+
+  1. Envoyer ATSH [adresse] pour sélectionner l'ECU cible
+  2. Envoyer ATFCSH [réponse_attendue] pour flow control
+  3. Envoyer la commande OBD (21XX, 22XX, etc)
+  4. Revenir à ATD (reset) quand terminé
+
+Exemple d'accès à la batterie hybride (7E4) :
+
+  await atsh.switchTo('7E4');     // ATSH 7E4
+  await atsh.send('ATFCSH 7EC');  // Flow Control header
+  
+  // Envoyer la commande Toyota
+  await elm.send('2101');         // Mode 21, PID 01
+  
+  // Réponse depuis l'ECU batterie :
+  // 61 01 [byte0] [byte1] [byte2] [byte3] [byte4] [byte5] [byte6]...
+  //  ↑   ↑                                                    ↑
+  //  |   |______ PID echo __________________________________ Données brutes
+  
+  // Parser (PID 2101, byte 6) = SOC %
+  SOC = byte6 / 2  // 0.5% de résolution
+
+Optimisations :
+  - switchTo() ne renvoie ATSH que si le header change
+  - Réduit le trafic CAN inutile
+  - Piste les changements d'état
+
+
+5. ORCHESTRATION : PID MANAGER
+================================================================================
+
+Fichier : pid-manager.js
+
+Élabore la stratégie de POLLING des différents codes.
+
+Flux d'exécution :
+
+  ┌─────────────────────────────────────────┐
+  │ Start Polling Loop (Tick tous les 50ms) │
+  └────────────────┬────────────────────────┘
+                   │
+          ┌────────▼────────┐
+          │ Find Next Due   │
+          │ PID (interval)  │
+          └────────┬────────┘
+                   │
+       ┌───────────▼───────────┐
+       │ Toyota PID?           │
+       ├───────────┬───────────┤
+       │    YES    │    NO     │
+       └───────────┼───────────┘
+             │         │
+          ┌──▼────┐ ┌──▼──────┐
+          │SWITCH │ │STANDARD │
+          │HEADER │ │(no ATSH)│
+          └──┬────┘ └──┬──────┘
+             │         │
+             └────┬────┘
+                  │
+           ┌──────▼──────┐
+           │Send To ELM  │
+           │(via queue)  │
+           └──────┬──────┘
+                  │
+           ┌──────▼──────────┐
+           │Parse raw → value│
+           │Store in State   │
+           └─────────────────┘
+
+Exemple de polling (Toyota Battery) :
+
+  {
+    pid: '2101',
+    name: 'HV Battery SOC',
+    unit: '%',
+    interval: POLLING.NORMAL,         // 1000ms
+    protocol: 'toyota',
+    header: '7E4',                     // Switch ATSH 7E4
+    parse: (raw) => parseToyotaBytes(raw, 2)[6] / 2
+  }
+
+Comportement du gestionnaire :
+  - Priorité aux PIDs les plus en retard
+  - Respecte les intervalles de polling (FAST=500ms, NORMAL=1s, SLOW=5s)
+  - Arrête le loop quand stop() est appelé
+
+
+6. FLUX COMPLET : DE LA PWA AU CAPTEUR
+================================================================================
+
+Diagramme de flux complet :
+
+  ┌─────────────────────────────────────────┐
+  │ React App (App.jsx, Dashboard.jsx)      │
+  │ Demande : "Batterie SOC ?"              │
+  └────────────────┬────────────────────────┘
+                   │
+           ┌───────▼──────────┐
+           │ PIDManager.start │
+           └────────┬─────────┘
+                    │
+           ┌────────▼──────────┐
+           │ Polling Loop      │
+           │ (50ms ticks)      │
+           └────────┬──────────┘
+                    │
+        ┌───────────▼───────────┐
+        │ ATSHManager→ATSH 7E4  │
+        │ (Switch to Battery)   │
+        └───────────┬───────────┘
+                    │
+        ┌───────────▼────────────┐
+        │ ELM327→send('2101')    │
+        │ (Commande BLE via 0xFFF2)
+        └───────────┬────────────┘
+                    │
+        ┌───────────▼────────────────┐
+        │ Dongle ELM327              │
+        │ Formule CAN: 7E4#2101      │
+        │ (Arbitration ID = 0x7E4)   │
+        └───────────┬────────────────┘
+                    │
+      ┌─────────────▼──────────────┐
+      │          Véhicule          │
+      │ Toyota Yaris Hybrid 2020    │
+      │ ECU Batterie (7EC)          │
+      │ Read Local ID = 01          │
+      │ SOC byte = 25 (ex: 0x19)    │
+      └──────────┬──────────────────┘
+                 │ Réponse CAN 0x7EC
+      ┌──────────▼──────────────┐
+      │  61 01 [data...] [0x19] │
+      │  └─ Mode 21 response    │
+      └──────────┬──────────────┘
+                 │
+      ┌──────────▼─────────────────┐
+      │ BLE Notify (0xFFF1)        │
+      │ Reçoit: "61 01 ... 19 ..."  │
+      └──────────┬─────────────────┘
+                 │
+      ┌──────────▼─────────────────┐
+      │ ELM327 Buffer + Parsing     │
+      │ parse(raw)[6] / 2  = 12.5% │
+      └──────────┬─────────────────┘
+                 │
+      ┌──────────▼──────────────────┐
+      │ Store.update('soc', 12.5)   │
+      └──────────┬──────────────────┘
+                 │
+      ┌──────────▼──────────────────┐
+      │ React Gauges mise à jour    │
+      │ <HvBatterySocGauge />       │
+      │ Affiche: 12.5%              │
+      └─────────────────────────────┘
+
+
+7. DÉTAILS TECHNIQUES CLÉS
+================================================================================
+
+Aspect                | Détail
+─────────────────────────────────────────────────────────────────────────
+Transport             | Web Bluetooth API (GATT) → ELM327 BLE dongle
+Protocole de base     | OBD-II standard + mode AT (ELM327)
+Mode codes Toyota     | Mode 0x21 (readDataByLocalId)
+Routage ECU           | Header CAN via ATSH (7E0, 7E2, 7E4, 7B0)
+Queuing               | Les commandes sont envoyées une à une
+Timing                | 50ms par tick, PIDs pollés selon interval
+Parsing               | Extraction bytes bruts → formules spécifiques
+Stockage              | Store.js accumule 60s d'historique par PID
+Authentification      | Aucune (OBD-II ouvert)
+Sécurité              | BLE pairing si dongle le supporte
+─────────────────────────────────────────────────────────────────────────
+
+
+8. POINTS D'EXTENSIBILITÉ
+================================================================================
+
+Pour ajouter un nouveau code Toyota :
+
+  {
+    pid: '21XX',                    // Mode 21, PID XX
+    name: 'Custom Metric',
+    unit: 'unit',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E4',                  // Quel ECU?
+    source: 'Documentation source',
+    parse: (raw) => {
+      const b = parseToyotaBytes(raw, 2);  // Skip header echo
+      return b[N] / divisor;  // Extract byte N avec formule
+    }
+  }
+
+Le système est MODULAIRE :
+  - Ajoutez un PID dans le tableau TOYOTA_PIDS
+  - Le polling/affichage s'en charge automatiquement
+  - Pas besoin de modifier le code core
+
+
+9. SOURCES DE DONNÉES DES PIDs
+================================================================================
+
+  [ELM-EMU]  Ircama/ELM327-emulator
+             https://github.com/Ircama/ELM327-emulator
+  
+  [OPENDBC]  commaai/opendbc
+             https://github.com/commaai/opendbc
+  
+  [SAE1979]  SAE J1979 — Standard OBD-II PID definitions
+  
+  [PRIUSCHAT] PriusChat.com — Toyota hybrid technical forums
+
+Sources internes du code :
+  - pids-standard.js : PIDs OBD-II universels
+  - pids-toyota.js   : PIDs propriétaires Toyota (mode 21/22)
+  - ble-adapter.js   : Transport Web Bluetooth
+  - elm327.js        : Protocole AT du dongle
+  - atsh-manager.js  : Routage ECU via headers CAN
+  - pid-manager.js   : Orchestration du polling
+
+
+10. STATES & LIFECYCLE
+================================================================================
+
+BLE Connection States :
+  disconnected  → (user clicks) → connecting → connected → (send commands)
+
+ELM327 States :
+  idle → initializing → ready → (polling) or error
+
+PIDManager States :
+  stopped → running (polling loop) → stopped
+
+
+11. ERREURS COURANTES & DEBUGGING
+================================================================================
+
+Problème : "NO DATA" sur un PID Toyota
+  - Vérifier le header ATSH (conforme à la doc ECU)
+  - Vérifier que le véhicule est en état de disponibilité (not sleep)
+  - Essayer un interval plus long (SLOW au lieu de NORMAL)
+
+Problème : ELM327 ne répond pas
+  - Vérifier la batterie du dongle
+  - Vérifier le pairing BLE
+  - Relancer la séquence ATZ
+
+Problème : Valeurs aberrantes
+  - Vérifier la formule de parsing (byte order, diviseur)
+  - Activer le DebugView pour voir les réponses brutes
+  - Comparer avec OBDLink ou similar tool
+
+Debugging :
+  - elm.onLog((dir, text) => console.log(dir, text))
+  - Voir les commandes AT/réponses en temps réel
+  - DebugView.jsx affiche le raw log
+
+
+12. ARCHITECTURE FICHIERS CLÉS
+================================================================================
+
+/ble-adapter.js        → Web Bluetooth + GATT
+/elm327.js             → Protocole AT + queuing
+/atsh-manager.js       → Routage ECU via ATSH
+/pid-manager.js        → Orchestration polling
+/pids-standard.js      → PIDs OBD-II universels
+/pids-toyota.js        → PIDs Toyota propriétaires
+/config.js             → Constantes (UUIDs, timeouts, etc)
+/store.js              → Accumulation historique des données
+/src/main.jsx          → Entry point React
+/src/components/       → Composants UI (gauges, charts, etc)
+
+
+13. PERFORMANCE & LIMITATIONS
+================================================================================
+
+Web Bluetooth limitations :
+  - Necessité de HTTPS ou localhost
+  - Marché utilisateur acceptable seulement sur Chrome/Edge
+  - Débit : ~50-100 commandes/sec (ELM327 bottleneck)
+
+ELM327 limitations :
+  - Queue size : illimité (mais pas de parallélisation)
+  - Timeout : 2000ms (configurable)
+  - Multi-frame responses : le dongle les agrège automatiquement
+
+Polling strategy :
+  - Max ~20-30 PIDs actifs simultanément en NORMAL mode
+  - FAST interval = 500ms (risky, high CAN traffic)
+  - SLOW interval = 5000ms (safe pour rare updates)
+
+
+14. RÉSUMÉ TECHNIQUE
+================================================================================
+
+La PWA fonctionne selon ce pipeline :
+
+  User Click (React)
+       ↓
+  PIDManager.start()
+       ↓
+  Loop toutes les 50ms cherche prochain PID dû
+       ↓
+  ┌─ Si Toyota : ATSHManager.switchTo(header)
+  └─ Si Standard : ATSHManager.resetToDefault()
+       ↓
+  ELM327.send(pid_command)  →  [queue]
+       ↓
+  BLEAdapter.send(raw_command)  →  [GATT Write → 0xFFF2]
+       ↓
+  Dongle ELM327 convertit AT → CAN frame vers 0x[header]
+       ↓
+  Véhicule ECU reçoit CAN ID 0x[header], read local ID 0x[pid]
+       ↓
+  Véhicule répond CAN → 0x[header+8] avec données
+       ↓
+  Dongle accumule réponse → envoie via [GATT Notify ← 0xFFF1]
+       ↓
+  BLEAdapter reçoit raw bytes, stocke dans buffer
+       ↓
+  ELM327 reconstitue chaîne "61 XX [data...]"
+       ↓
+  PID.parse(raw) extrait formule → valeur numérique
+       ↓
+  Store.update(pid_key, value)
+       ↓
+  React observe changement → re-render gauges/charts
+       ↓
+  Utilisateur voit la donnée mise à jour
+
+Boucle : ~1-5 secondes par PID (intervalle configurable)
+
+================================================================================
+Fin du document technique
+================================================================================

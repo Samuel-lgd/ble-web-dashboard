@@ -119,7 +119,7 @@ async function bootstrap() {
 
   // Register service worker
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    navigator.serviceWorker.register(import.meta.env.BASE_URL + 'service-worker.js').catch(() => {});
   }
 }
 
