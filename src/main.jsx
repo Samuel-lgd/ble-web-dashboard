@@ -47,6 +47,10 @@ async function bootstrap() {
     elm                = new MockELM();
     mockEngineInstance = new MockEngine(store, tripManager, adapter, elm);
 
+    // Seed demo trips (Toulouse ↔ Blagnac) — no-op if already present
+    const { seedMockTrips } = await import('./mock/mock-trips-seed.js');
+    await seedMockTrips(tripManager._storage);
+
     // Expose for console debugging
     window.mockEngine = mockEngineInstance;
 
@@ -82,6 +86,9 @@ async function bootstrap() {
     let connected = false;
 
     adapter.onStateChange((bleState) => {
+      if (bleState === 'connected') {
+        elm.initialize().catch(() => {});
+      }
       if (bleState === 'disconnected') {
         connected = false;
         pidManager.stop();

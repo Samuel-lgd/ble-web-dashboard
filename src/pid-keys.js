@@ -21,6 +21,7 @@ export const PID_KEYS = {
   HYBRID_BATTERY_SOC:  'standard::015B:Hybrid Battery SOC',
   ENGINE_OIL_TEMP:     'standard::015C:Engine Oil Temp',
   FUEL_RATE:           'standard::015E:Fuel Rate',
+  FUEL_TANK_LEVEL:     'standard::012F:Fuel Tank Level',
   ABSOLUTE_LOAD:       'standard::0143:Absolute Load',
   AMBIENT_AIR_TEMP:    'standard::0146:Ambient Air Temp',
   ACCEL_PEDAL_POS:     'standard::0149:Accel Pedal Pos',

@@ -206,4 +206,19 @@ export const STANDARD_PIDS = [
       return ((b[0] * 256) + b[1]) / 1000;
     },
   },
+  {
+    pid: '012F',
+    name: 'Fuel Tank Level',
+    unit: '%',
+    interval: POLLING.SLOW,
+    protocol: 'standard',
+    source: 'SAE J1979 — PID 0x2F Fuel Tank Level Input',
+    verified: true,
+    notes: 'Standard OBD2 PID 2Fh. Returns fuel tank fill level as a percentage. Scale: A*100/255.',
+    parse(raw) {
+      const b = parseBytes(raw, 1);
+      if (!b) return null;
+      return (b[0] * 100) / 255;
+    },
+  },
 ];

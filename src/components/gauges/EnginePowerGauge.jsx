@@ -102,6 +102,12 @@ export default function EnginePowerGauge() {
         <circle cx="0" cy="0" r="3" fill="url(#epwr-cap)" stroke="#1a1a1c" strokeWidth="0.3" />
         <circle cx="0" cy="0" r="1.2" fill="#555" />
 
+        {/* Engine power % label */}
+        <text x="0" y="-12" fill="#555" fontSize="4" textAnchor="middle"
+          style={{ fontFamily: 'Orbitron, monospace' }}>
+          LOAD %
+        </text>
+
         {/* RPM numeric display */}
         <text x="0" y="19" fill="#e0e0e0" fontSize="13" textAnchor="middle"
           style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>

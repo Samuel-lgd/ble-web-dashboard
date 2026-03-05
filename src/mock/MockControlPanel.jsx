@@ -47,6 +47,10 @@ export default function MockControlPanel({ engine }) {
     engine.setCoolantTemp(Number(e.target.value));
   }, [engine]);
 
+  const handleFuelLevelChange = useCallback((e) => {
+    engine.setFuelLevel(Number(e.target.value));
+  }, [engine]);
+
   const handleForceRegen = useCallback(() => engine.forceRegen(), [engine]);
   const handleForceAccel = useCallback(() => engine.forceAccel(), [engine]);
   const handleToggleAC   = useCallback(() => engine.toggleAC(),   [engine]);
@@ -130,6 +134,23 @@ export default function MockControlPanel({ engine }) {
           style={styles.slider}
         />
         <span style={styles.value}>{Math.round(state.coolantTempC)}°C</span>
+      </div>
+
+      {/* Fuel Level slider */}
+      <div style={styles.row}>
+        <span style={styles.label}>Fuel</span>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          value={Math.round(state.fuelLevelPercent ?? 72)}
+          onChange={handleFuelLevelChange}
+          style={styles.slider}
+        />
+        <span style={{ ...styles.value, color: (state.fuelLevelPercent ?? 72) < 15 ? '#ef4444' : (state.fuelLevelPercent ?? 72) < 30 ? '#f97316' : '#22c55e' }}>
+          {Math.round(state.fuelLevelPercent ?? 72)}%
+        </span>
       </div>
 
       {/* Speed readout */}

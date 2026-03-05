@@ -14,8 +14,10 @@
  * Change to 'ble' before connecting to a real vehicle.
  * The mock files are loaded via dynamic import and are excluded from
  * production bundles when this is set to 'ble'.
+ *
+ * Can be overridden at runtime via localStorage.debugMockMode = 'true'
  */
-export const TRANSPORT_MODE = 'mock'; // 'ble' | 'serial' | 'mock'
+export const TRANSPORT_MODE = localStorage.getItem('debugMockMode') === 'true' ? 'mock' : 'ble';
 
 /**
  * BLE GATT profiles for known OBD2 adapters.

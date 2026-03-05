@@ -86,12 +86,27 @@ export class GeoManager {
    * @returns {Promise<string|null>}
    */
   async reverseGeocode(lat, lng) {
-    // Round to 5 decimal places for cache key (~1m precision)
-    const cacheKey = `${GEOCODE_CACHE_PREFIX}${lat.toFixed(5)}_${lng.toFixed(5)}`;
+    const details = await this.reverseGeocodeDetails(lat, lng);
+    return details ? details.full : null;
+  }
+
+  /**
+   * Reverse geocode a lat/lng to a structured location object.
+   * Returns city and suburb/neighbourhood for compact display.
+   * Uses Nominatim with rate limiting (max 1 req/s) and sessionStorage caching.
+   * @param {number} lat
+   * @param {number} lng
+   * @returns {Promise<{city: string, suburb: string|null, full: string}|null>}
+   */
+  async reverseGeocodeDetails(lat, lng) {
+    // Round to 4 decimal places for cache key (~11m precision — enough for city/suburb)
+    const cacheKey = `${GEOCODE_CACHE_PREFIX}struct_${lat.toFixed(4)}_${lng.toFixed(4)}`;
 
     // Check sessionStorage cache
     const cached = sessionStorage.getItem(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+      try { return JSON.parse(cached); } catch (_) {}
+    }
 
     // Rate limit: wait until at least 1s since last request
     const now = Date.now();
@@ -102,7 +117,8 @@ export class GeoManager {
 
     try {
       this._lastGeocodeFetch = Date.now();
-      const url = `${NOMINATIM_BASE}?lat=${lat}&lon=${lng}&format=json&zoom=16`;
+      // zoom=14 gives city-level granularity with suburb detail
+      const url = `${NOMINATIM_BASE}?lat=${lat}&lon=${lng}&format=json&zoom=14&addressdetails=1`;
       const response = await fetch(url, {
         headers: { 'User-Agent': 'OBD2-Dashboard-PWA/1.0' },
       });
@@ -110,11 +126,34 @@ export class GeoManager {
       if (!response.ok) return null;
 
       const data = await response.json();
-      const address = data.display_name || null;
-      if (address) {
-        sessionStorage.setItem(cacheKey, address);
-      }
-      return address;
+      const addr = data.address || {};
+
+      // Best available city-level name
+      const city =
+        addr.city ||
+        addr.town ||
+        addr.village ||
+        addr.municipality ||
+        addr.county ||
+        addr.state ||
+        null;
+
+      // Best available sub-city name (neighbourhood, district, suburb)
+      const suburb =
+        addr.suburb ||
+        addr.neighbourhood ||
+        addr.quarter ||
+        addr.city_district ||
+        addr.district ||
+        null;
+
+      const full = data.display_name || null;
+
+      if (!city && !full) return null;
+
+      const result = { city: city || full, suburb, full };
+      sessionStorage.setItem(cacheKey, JSON.stringify(result));
+      return result;
     } catch (_) {
       return null;
     }

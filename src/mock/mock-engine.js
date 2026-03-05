@@ -204,6 +204,7 @@ function createInitialState(ambientTemp = 14) {
     throttlePercent: 0,
     fuelRateLh:      0,
     injectorVolumeMl: 0,
+    fuelLevelPercent: 72,
 
     // Hybrid system
     hvSocPercent:    58,
@@ -344,6 +345,11 @@ export class MockEngine {
   /** Override coolant temperature directly (control panel slider). */
   setCoolantTemp(celsius) {
     this._state.coolantTempC = clamp(celsius, 20, 120);
+  }
+
+  /** Override fuel tank level directly (control panel slider). */
+  setFuelLevel(percent) {
+    this._state.fuelLevelPercent = clamp(percent, 0, 100);
   }
 
   /** Trigger 5 seconds of simulated hard braking / regen. */
@@ -510,6 +516,14 @@ export class MockEngine {
     // Fuel
     s.fuelRateLh      = computeFuelRate(s.engineOn, s.speedKmh, s.throttlePercent);
     s.injectorVolumeMl = computeInjectorVolume(s.fuelRateLh, s.engineRpm);
+    // Drain tank slowly: fuelRateLh in L/h → convert to % consumed per tick
+    // Toyota Yaris tank ≈ 42L. 1L consumed = 100/42 ≈ 2.38% drain.
+    const _tankLitres = 42;
+    s.fuelLevelPercent = clamp(
+      s.fuelLevelPercent - (s.fuelRateLh / 3600) * dtSec * (100 / _tankLitres),
+      0,
+      100
+    );
 
     // Temperatures
     s.coolantTempC   = computeCoolantTemp(s.coolantTempC, s.engineOn, s.ambientTempC, dtSec);

@@ -59,6 +59,17 @@ export default function DebugView({ onBack }) {
     return () => clearInterval(iv);
   }, []);
 
+  const isMockMode = localStorage.getItem('debugMockMode') === 'true';
+
+  const toggleMockMode = () => {
+    if (isMockMode) {
+      localStorage.removeItem('debugMockMode');
+    } else {
+      localStorage.setItem('debugMockMode', 'true');
+    }
+    window.location.reload();
+  };
+
   const pushValidationLog = (status, label, details = '') => {
     setValidationLogs((prev) => [...prev, { status, label, details }]);
   };
@@ -131,6 +142,13 @@ export default function DebugView({ onBack }) {
           className="cluster-back-btn"
           style={{ fontFamily: 'Orbitron, monospace' }}>
           ◀ DASH
+        </button>
+        <button
+          onClick={toggleMockMode}
+          className={`cluster-nav-btn ${isMockMode ? 'cluster-nav-btn--green' : 'cluster-nav-btn--red'}`}
+          style={{ fontFamily: 'Orbitron, monospace', fontSize: '11px' }}
+        >
+          {isMockMode ? '✓ MOCK MODE ON' : '✗ MOCK MODE OFF'}
         </button>
         <button
           onClick={runMockValidation}

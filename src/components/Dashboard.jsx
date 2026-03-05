@@ -1,10 +1,41 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import SpeedGauge from './gauges/SpeedGauge';
 import ConsumptionHistory from './charts/ConsumptionHistory';
 import EnginePowerGauge from './gauges/EnginePowerGauge';
 import EngineThermalStatus from './badges/EngineThermalStatus';
+import FuelLevelGauge from './gauges/FuelLevelGauge';
 import HvBatterySocGauge from './gauges/HvBatterySocGauge';
 import RegenAccelDelta from './visualizations/RegenAccelDelta';
+import BleConnectPanel from './BleConnectPanel';
+import { useDashboard } from './DashboardContext';
+import { TRANSPORT_MODE } from '../../config.js';
+
+/**
+ * Shows BleConnectPanel when BLE mode and not yet connected,
+ * otherwise shows normal ConsumptionHistory.
+ */
+function CenterBottomPanel() {
+  const { adapter, elm } = useDashboard();
+  const aliveRef = useRef(true);
+  const [bleState, setBleState] = useState(adapter?.state ?? 'disconnected');
+  const [elmState, setElmState] = useState(elm?.state ?? 'idle');
+
+  useEffect(() => {
+    aliveRef.current = true;
+    adapter?.onStateChange((s) => {
+      if (aliveRef.current) setBleState(s);
+    });
+    elm?.onStateChange((s) => {
+      if (aliveRef.current) setElmState(s);
+    });
+    return () => { aliveRef.current = false; };
+  }, [adapter, elm]);
+
+  const operational = TRANSPORT_MODE === 'mock' ||
+    (bleState === 'connected' && elmState === 'ready');
+
+  return operational ? <ConsumptionHistory /> : <BleConnectPanel />;
+}
 
 function TripPill({ label, value, color = '#999' }) {
   return (
@@ -29,8 +60,21 @@ export default function Dashboard({ onNavigateTrips, onNavigateDebug }) {
           <div className="flex-[5] min-h-0 overflow-visible">
             <EnginePowerGauge />
           </div>
-          <div className="flex-[3] min-h-0 overflow-visible">
-            <EngineThermalStatus />
+          <div className="flex-[3] min-h-0 flex flex-row items-stretch gap-1.5 px-1.5 pb-1.5">
+            <div className="flex-1 min-w-0 overflow-visible">
+              <EngineThermalStatus />
+            </div>
+            <div
+              className="min-h-0 overflow-hidden rounded-[4px] shrink-0"
+              style={{
+                width: '25%',
+                background: 'linear-gradient(to bottom, #0e0e14, #08080c)',
+                border: '1px solid #1a1a1e',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03)',
+              }}
+            >
+              <FuelLevelGauge />
+            </div>
           </div>
         </div>
 
@@ -65,7 +109,7 @@ export default function Dashboard({ onNavigateTrips, onNavigateDebug }) {
           </div>
 
           <div className="flex-[1.5] min-h-0 px-2 pb-2">
-            <ConsumptionHistory />
+            <CenterBottomPanel />
           </div>
         </div>
 

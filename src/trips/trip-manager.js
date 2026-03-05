@@ -105,6 +105,12 @@ export class TripManager {
 
     // Check storage quota on startup
     this._checkStorage();
+
+    // Recover any 'recording' trips left by a previous crash / forced close
+    this._recoverInterruptedTrips().catch(() => {});
+
+    // Save current trip when the page is hidden (background switch, close, phone sleep)
+    this._attachPageLifecycleListeners();
   }
 
   // ---- Public API ----
@@ -146,6 +152,17 @@ export class TripManager {
     if (!this._currentTrip) return null;
 
     const trip = this._currentTrip;
+
+    // Discard trips shorter than 1 minute
+    if (!this._isTripLongEnough(trip)) {
+      this._stopSnapshotTimer();
+      this._stopAutoDetect();
+      this._geo.stop();
+      this._currentTrip = null;
+      this._emit('trip:discarded', trip);
+      return null;
+    }
+
     trip.endTime = new Date().toISOString();
     trip.status = 'completed';
 
@@ -328,6 +345,15 @@ export class TripManager {
   async _interruptTrip() {
     if (!this._currentTrip) return;
     const trip = this._currentTrip;
+
+    // Discard trips shorter than 1 minute
+    if (!this._isTripLongEnough(trip)) {
+      this._stopSnapshotTimer();
+      this._geo.stop();
+      this._currentTrip = null;
+      return;
+    }
+
     trip.endTime = new Date().toISOString();
     trip.status = 'interrupted';
 
@@ -339,7 +365,10 @@ export class TripManager {
     const tags = autoTag(trip.stats, trip.snapshots);
     trip.meta.tags = [...new Set([...trip.meta.tags, ...tags])];
 
+    // Geocode even on interrupt — save first with partial data, then update
     await this._storage.save(trip).catch(() => {});
+    this._geocodeTrip(trip).then(() => this._storage.save(trip).catch(() => {})).catch(() => {});
+
     this._currentTrip = null;
     this._emit('trip:stopped', trip);
   }
@@ -531,15 +560,96 @@ export class TripManager {
     const last = snapWithGeo[snapWithGeo.length - 1];
 
     try {
-      trip.stats.startAddress = await this._geo.reverseGeocode(first.lat, first.lng);
+      const startDetails = await this._geo.reverseGeocodeDetails(first.lat, first.lng);
+      trip.stats.startLocation = startDetails;
+      trip.stats.startAddress = startDetails?.full ?? null;
     } catch (_) {
+      trip.stats.startLocation = null;
       trip.stats.startAddress = null;
     }
 
     try {
-      trip.stats.endAddress = await this._geo.reverseGeocode(last.lat, last.lng);
+      const endDetails = await this._geo.reverseGeocodeDetails(last.lat, last.lng);
+      trip.stats.endLocation = endDetails;
+      trip.stats.endAddress = endDetails?.full ?? null;
     } catch (_) {
+      trip.stats.endLocation = null;
       trip.stats.endAddress = null;
+    }
+  }
+
+  // ---- Private: Page lifecycle & emergency save ----
+
+  /**
+   * Returns true if the trip has been running for at least 60 seconds.
+   * @param {Trip} trip
+   * @returns {boolean}
+   */
+  _isTripLongEnough(trip) {
+    const MIN_MS = 60_000;
+    const elapsed = Date.now() - new Date(trip.startTime).getTime();
+    if (elapsed >= MIN_MS) return true;
+    const interval = this._config.get('snapshotIntervalMs') || 1000;
+    return trip.snapshots.length * interval >= MIN_MS;
+  }
+
+  /**
+   * Register visibilitychange / pagehide listeners so trip data is persisted
+   * when the user backgrounds or closes the app.
+   */
+  _attachPageLifecycleListeners() {
+    this._onVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') this._emergencySave();
+    };
+    this._onPageHide = () => this._emergencySave();
+    document.addEventListener('visibilitychange', this._onVisibilityChange);
+    window.addEventListener('pagehide', this._onPageHide);
+  }
+
+  /**
+   * Immediately persist the current trip state (best-effort, fire-and-forget).
+   * Keeps status as 'recording' so the trip can be resumed or recovered.
+   */
+  _emergencySave() {
+    if (!this._currentTrip) return;
+    if (this._currentTrip.snapshots.length > 0) {
+      this._currentTrip.stats = computeFinalStats(
+        this._currentTrip.snapshots,
+        this._config.getAll(),
+      );
+    }
+    this._storage.save(this._currentTrip).catch(() => {});
+  }
+
+  /**
+   * On startup: finalize any trips left in 'recording' state by a previous crash.
+   * Trips >= 1 min are saved as 'interrupted'; shorter ones are deleted.
+   */
+  async _recoverInterruptedTrips() {
+    const summaries = await this._storage.loadAllSummaries();
+    const stale = summaries.filter(s => s.status === 'recording');
+    if (stale.length === 0) return;
+
+    const config = this._config.getAll();
+    const interval = this._config.get('snapshotIntervalMs') || 1000;
+
+    for (const s of stale) {
+      const trip = await this._storage.load(s.id);
+      if (!trip) continue;
+
+      const durationMs = trip.snapshots.length * interval;
+      if (durationMs >= 60_000) {
+        trip.status = 'interrupted';
+        if (!trip.endTime) {
+          trip.endTime = trip.snapshots.at(-1)?.timestamp ?? new Date().toISOString();
+        }
+        trip.stats = computeFinalStats(trip.snapshots, config);
+        const tags = autoTag(trip.stats, trip.snapshots);
+        trip.meta.tags = [...new Set([...trip.meta.tags, ...tags])];
+        await this._storage.save(trip).catch(() => {});
+      } else {
+        await this._storage.delete(trip.id).catch(() => {});
+      }
     }
   }
 
@@ -596,5 +706,6 @@ function _emptyStats() {
     avgCoolantTemp: 0, idleTimeSeconds: 0, hardBrakingCount: 0,
     hardAccelerationCount: 0, maxRpm: 0, co2EmittedGrams: 0, savedCo2Grams: 0,
     boundingBox: null, startAddress: null, endAddress: null,
+    startLocation: null, endLocation: null,
   };
 }

@@ -70,8 +70,17 @@
  * @property {number} co2EmittedGrams - Estimated CO2 emitted in grams.
  * @property {number} savedCo2Grams - Estimated CO2 saved vs pure ICE in grams.
  * @property {BoundingBox|null} boundingBox - GPS bounding box, or null if no GPS data.
- * @property {string|null} startAddress - Reverse geocoded start address.
- * @property {string|null} endAddress - Reverse geocoded end address.
+ * @property {string|null} startAddress - Reverse geocoded start address (full string).
+ * @property {string|null} endAddress - Reverse geocoded end address (full string).
+ * @property {LocationInfo|null} startLocation - Structured start location (city + suburb).
+ * @property {LocationInfo|null} endLocation - Structured end location (city + suburb).
+ */
+
+/**
+ * @typedef {Object} LocationInfo
+ * @property {string} city - City or town name.
+ * @property {string|null} suburb - Suburb, neighbourhood, or district name.
+ * @property {string} full - Full display name from reverse geocoding.
  */
 
 /**

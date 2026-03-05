@@ -46,6 +46,7 @@ export class MockStoreBridge {
     u(PID_KEYS.HYBRID_BATTERY_SOC, s.hvSocPercent);
     u(PID_KEYS.ENGINE_OIL_TEMP,    s.oilTempC);
     u(PID_KEYS.FUEL_RATE,          s.fuelRateLh);
+    u(PID_KEYS.FUEL_TANK_LEVEL,    s.fuelLevelPercent);
     // Absolute Load approximates throttle position for standard OBD2
     u(PID_KEYS.ABSOLUTE_LOAD,      s.throttlePercent);
     u(PID_KEYS.AMBIENT_AIR_TEMP,   s.ambientTempC);
