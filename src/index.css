@@ -75,6 +75,18 @@ html, body, #app {
 }
 .counter-live { animation: counter-flash 0.6s ease-in-out infinite; }
 
+/* SOC Delta Tracker — pulsing labels */
+@keyframes sdt-pulse-g {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+@keyframes sdt-pulse-a {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+.sdt-pulse-green { animation: sdt-pulse-g 1.4s ease-in-out infinite; }
+.sdt-pulse-amber { animation: sdt-pulse-a 1.4s ease-in-out infinite; }
+
 /* Scrollable areas */
 .trip-scroll {
   overflow-y: auto;
