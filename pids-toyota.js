@@ -1,4 +1,9 @@
 import { POLLING } from './config.js';
+import {
+  ACTIVE_VEHICLE_PROFILE,
+  TOYOTA_UNVERIFIED_PID_KEYS,
+  VEHICLE_PROFILES,
+} from './config.js';
 
 /**
  * Toyota Yaris Hybrid 2020 (MXPH10/15) — Full PID Implementation.
@@ -38,17 +43,104 @@ import { POLLING } from './config.js';
 // ─── Parse helpers ───────────────────────────────────────────────────────────
 
 /**
+ * Extract the application-layer payload from a CAN response.
+ * Handles both single-frame and multi-frame ISO 15765-2 (ISO-TP) responses
+ * with ATH1 enabled (CAN headers visible in response).
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ Response format with ATH1 (headers ON):                                │
+ * │                                                                        │
+ * │ Single frame:                                                          │
+ * │   "7EA 05 61 01 AA BB CC DD EE"                                        │
+ * │    ─── ── ─────────────────────                                        │
+ * │    hdr PCI(SF, len=5) data                                             │
+ * │                                                                        │
+ * │ Multi-frame:                                                           │
+ * │   "7EA 10 13 61 01 AA BB CC DD"   ← First Frame (FF): PCI=10 len=0x013│
+ * │   "7EA 21 EE FF GG HH II JJ KK"  ← Consecutive Frame (CF): seq=1     │
+ * │   "7EA 22 LL MM NN OO PP QQ RR"  ← Consecutive Frame (CF): seq=2     │
+ * │                                                                        │
+ * │ PCI byte types (high nibble):                                          │
+ * │   0x0n = Single Frame (n = data length)                                │
+ * │   0x1n = First Frame (next byte = remaining length)                    │
+ * │   0x2n = Consecutive Frame (n = sequence counter 0-F)                  │
+ * │   0x3n = Flow Control (not in responses to tester)                     │
+ * │                                                                        │
+ * │ 3-char hex tokens (e.g. "7EA") are CAN headers — stripped by the       │
+ * │ 2-char hex filter. If headers are off (ATH0), line boundaries          │
+ * │ separate frames instead.                                               │
+ * └─────────────────────────────────────────────────────────────────────────┘
+ *
+ * @param {string} raw - Cleaned ELM327 response (from _parseResponse).
+ * @returns {number[] | null} Reassembled payload bytes (e.g. [0x61, 0x01, 0xAA, ...]).
+ */
+function extractCanPayload(raw) {
+  // Split into lines (ELM327 separates frames with \r; _parseResponse may
+  // have collapsed them to spaces, but we try lines first for multi-frame).
+  const lines = raw.split(/[\r\n]+/).map((l) => l.trim()).filter(Boolean);
+
+  // If _parseResponse collapsed everything into one line, try splitting on
+  // 3-char hex tokens (CAN headers like 7EA, 7E8) as frame delimiters.
+  const frames = [];
+  for (const line of lines) {
+    const tokens = line.split(/\s+/).filter((s) => /^[0-9A-Fa-f]+$/.test(s));
+    let currentFrame = [];
+    for (const token of tokens) {
+      if (token.length === 3) {
+        // CAN header — start a new frame
+        if (currentFrame.length > 0) frames.push(currentFrame);
+        currentFrame = [];
+      } else if (token.length === 2) {
+        currentFrame.push(parseInt(token, 16));
+      }
+    }
+    if (currentFrame.length > 0) frames.push(currentFrame);
+  }
+
+  if (frames.length === 0) return null;
+
+  // Reassemble payload by stripping PCI bytes from each frame
+  const payload = [];
+  for (let i = 0; i < frames.length; i++) {
+    const frame = frames[i];
+    if (frame.length === 0) continue;
+
+    const pciType = frame[0] >> 4;
+
+    if (pciType === 0) {
+      // Single Frame: byte 0 = 0x0N (N = data length), bytes 1..N = data
+      payload.push(...frame.slice(1));
+    } else if (pciType === 1) {
+      // First Frame: bytes 0-1 = 0x1N LL (total length), bytes 2+ = data
+      payload.push(...frame.slice(2));
+    } else if (pciType === 2) {
+      // Consecutive Frame: byte 0 = 0x2N (sequence), bytes 1+ = data
+      payload.push(...frame.slice(1));
+    } else {
+      // Flow control or unknown — include all (shouldn't appear in responses)
+      payload.push(...frame);
+    }
+  }
+
+  return payload.length > 0 ? payload : null;
+}
+
+/**
  * Parse helper for Toyota proprietary responses.
- * Responses look like: "61 XX AA BB CC ..." (mode 21) or "62 XX YY AA BB ..." (mode 22).
- * This extracts all bytes after the echo prefix.
+ * Extracts the reassembled ISO-TP payload, then skips the mode/PID echo bytes.
+ *
+ * With ATH1 + CAN auto-formatting, a mode 21 response to PID 2101 produces:
+ *   Payload after extractCanPayload: [0x61, 0x01, 0xAA, 0xBB, 0xCC, ...]
+ *   After skipping echoBytes=2:      [0xAA, 0xBB, 0xCC, ...]
+ *
  * @param {string} raw - Cleaned response.
  * @param {number} echoBytes - Number of echo bytes to skip (2 for mode 21, 3 for mode 22).
  * @returns {number[] | null} Data bytes as integers.
  */
 function parseToyotaBytes(raw, echoBytes) {
-  const parts = raw.split(' ').filter((s) => /^[0-9A-Fa-f]{2}$/.test(s));
-  if (parts.length <= echoBytes) return null;
-  return parts.slice(echoBytes).map((h) => parseInt(h, 16));
+  const payload = extractCanPayload(raw);
+  if (!payload || payload.length <= echoBytes) return null;
+  return payload.slice(echoBytes);
 }
 
 /**
@@ -339,7 +431,7 @@ export const TOYOTA_PIDS = [
     protocol: 'toyota',
     header: '7E2',
     source: 'https://github.com/Ircama/ELM327-emulator — CUSTOM_MG1_TORQ (PID 2167 on 7EA)',
-    verified: true,
+    verified: false,
     notes:
       'MG1 (generator) torque from HV ECU. Formula: (A*256+B)/8 - 4096. ' +
       'Range: -4096 to +4095.875 Nm. Positive = engine cranking / generating, ' +
@@ -360,7 +452,7 @@ export const TOYOTA_PIDS = [
     protocol: 'toyota',
     header: '7E2',
     source: 'https://github.com/Ircama/ELM327-emulator — CUSTOM_MG2_TORQ (PID 2168 on 7EA)',
-    verified: true,
+    verified: false,
     notes:
       'MG2 (drive motor) torque from HV ECU. Formula: (A*256+B)/8 - 4096. ' +
       'Positive = propulsion, negative = regenerative braking. ' +
@@ -592,7 +684,7 @@ export const TOYOTA_PIDS = [
     protocol: 'toyota',
     header: '7E2',
     source: 'https://github.com/Ircama/ELM327-emulator — derived from CUSTOM_MG2_TORQ (PID 2168)',
-    verified: true,
+    verified: false,
     notes:
       'Actual regenerative braking torque, derived from MG2 Torque (PID 2168). ' +
       'MG2 torque is negative during regen braking — this PID returns |torque| when ' +
@@ -746,6 +838,31 @@ export const TOYOTA_PIDS = [
     },
   },
 ];
+
+// ── Auto-populate rxHeader from CAN address map ─────────────────────────────
+// Each ECU has a fixed response address = request address + 8.
+// rxHeader is needed by ATSHManager for CAN receive identification and
+// by PIDManager for startup validation.
+const activeProfile = VEHICLE_PROFILES[ACTIVE_VEHICLE_PROFILE] || VEHICLE_PROFILES.DEFAULT_TOYOTA_HYBRID;
+export const ECU_RX_MAP = Object.values(activeProfile.ecuMap).reduce((acc, ecu) => {
+  acc[ecu.tx] = ecu.rx;
+  return acc;
+}, /** @type {Record<string, string>} */ ({}));
+
+// Source: active profile mapping from config.js VEHICLE_PROFILES.
+// If a runtime ECU response uses a different header, PIDManager updates
+// pid.rxHeader dynamically as a safety fallback.
+for (const pid of TOYOTA_PIDS) {
+  if (pid.header && !pid.rxHeader) {
+    pid.rxHeader = ECU_RX_MAP[pid.header];
+  }
+
+  // Enforce config-level UNVERIFIED registry from Block 4 audit.
+  const pidKey = `${pid.header || ''}:${pid.pid}:${pid.name}`;
+  if (TOYOTA_UNVERIFIED_PID_KEYS.includes(pidKey)) {
+    pid.verified = false;
+  }
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PIDs NOT IMPLEMENTED — no verifiable source found

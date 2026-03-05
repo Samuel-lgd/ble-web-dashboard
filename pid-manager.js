@@ -34,10 +34,14 @@ export class PIDManager {
 
   /**
    * Register PID definitions to be polled.
+   * Validates that Toyota PIDs have rxHeader defined.
    * @param {import('./pids-standard.js').PIDDefinition[]} pids
    */
   addPIDs(pids) {
     for (const pid of pids) {
+      if (pid.protocol === 'toyota' && pid.header && !pid.rxHeader) {
+        console.warn(`[PIDManager] Toyota PID "${pid.name}" (${pid.pid} on ${pid.header}) missing rxHeader`);
+      }
       this._pids.push(pid);
       this._store.register(this._pidKey(pid));
     }
@@ -71,12 +75,21 @@ export class PIDManager {
     if (!this._running) return;
 
     try {
+      // Backpressure guard: do not enqueue a new poll while transport is busy.
+      if (typeof this._elm.isBusy === 'function' && this._elm.isBusy()) {
+        if (this._running) {
+          this._loopTimeout = setTimeout(() => this._loop(), 50);
+        }
+        return;
+      }
+
       const pid = this._nextDuePID();
       if (pid) {
         await this._pollPID(pid);
       }
     } catch (err) {
-      // Log errors but keep the loop going
+      // Invalidate ATSH state so next poll re-sends the full header + FC sequence
+      this._atsh.invalidate();
       console.error('[PIDManager] poll error:', err.message);
     }
 
@@ -120,12 +133,23 @@ export class PIDManager {
 
     // Handle header switching for Toyota PIDs
     if (pid.protocol === 'toyota' && pid.header) {
-      await this._atsh.switchTo(pid.header);
+      await this._atsh.switchTo(pid.header, pid.rxHeader);
     } else if (pid.protocol === 'standard' && this._atsh.currentHeader !== null) {
       await this._atsh.resetToDefault();
     }
 
     const raw = await this._elm.send(pid.pid);
+
+    if (pid.protocol === 'toyota' && pid.header) {
+      const observedRx = this._extractResponseHeader(raw);
+      if (observedRx && pid.rxHeader && observedRx !== pid.rxHeader) {
+        console.warn(
+          `[PIDManager] rxHeader mismatch for ${pid.name} (${pid.pid}) on ${pid.header}: ` +
+          `expected ${pid.rxHeader}, observed ${observedRx}. Using observed header (dynamic fallback).`
+        );
+        pid.rxHeader = observedRx;
+      }
+    }
 
     // Check for error responses
     if (/NO DATA|ERROR|UNABLE|STOPPED/i.test(raw)) {
@@ -148,5 +172,16 @@ export class PIDManager {
   _pidKey(pid) {
     const h = pid.header || '';
     return `${pid.protocol}:${h}:${pid.pid}:${pid.name}`;
+  }
+
+  /**
+   * Extract first 11-bit CAN header token from an ELM response string.
+   * Expects ATH1 enabled responses like: "7EA 10 13 ...".
+   * @param {string} raw
+   * @returns {string | null}
+   */
+  _extractResponseHeader(raw) {
+    const m = String(raw || '').match(/\b([0-9A-Fa-f]{3})\b/);
+    return m ? m[1].toUpperCase() : null;
   }
 }

@@ -50,10 +50,32 @@ export class ELM327 {
     try {
       for (let i = 0; i < CFG.INIT_SEQUENCE.length; i++) {
         const cmd = CFG.INIT_SEQUENCE[i];
-        // ATZ reset needs extra time
+
+        // ATZ reset needs extra time and is used to detect chipset family.
         if (cmd === 'ATZ') {
-          await this.send(cmd, CFG.RESET_DELAY_MS + CFG.COMMAND_TIMEOUT_MS);
+          const atz = await this.send(cmd, CFG.RESET_DELAY_MS + CFG.COMMAND_TIMEOUT_MS);
+          // Source: https://obdtester.com/elm-usb-commands
+          // ATZ returns adapter identification; ELM clones often show "ELM327",
+          // while STN-based adapters typically include "STNxxxx".
+          if (/STN\d+/i.test(atz)) {
+            this._log('RX', `[INIT] Adapter chipset detected: STN (${atz})`);
+          } else if (/ELM327/i.test(atz)) {
+            this._log('RX', `[INIT] Adapter chipset detected: ELM327 (${atz})`);
+          } else {
+            this._log('RX', `[INIT] Adapter chipset UNVERIFIED (${atz || 'no id string'})`);
+          }
           await this._delay(CFG.RESET_DELAY_MS);
+        } else if (cmd === 'ATDP') {
+          await this._detectAndLockProtocol();
+        } else if (cmd === 'ATAL') {
+          await this._sendOptionalInit('ATAL',
+            'UNVERIFIED on some clone firmware; continuing with adapter defaults if unsupported');
+        } else if (cmd === 'ATAT2') {
+          const ok = await this._sendOptionalInit('ATAT2',
+            'ATAT2 unsupported on this adapter, falling back to ATAT1');
+          if (!ok) {
+            await this._sendOptionalInit('ATAT1', 'ATAT1 fallback also unsupported');
+          }
         } else {
           await this.send(cmd);
         }
@@ -63,6 +85,88 @@ export class ELM327 {
       this._setState('error');
       throw err;
     }
+  }
+
+  /**
+   * Detect current protocol after ATSP0 and lock to explicit CAN profile.
+   * Mapping is based on ELM protocol numbers 6/7/8/9.
+   *
+   * Sources:
+   * - https://obdtester.com/elm-usb-commands (ATSP table + ATDP examples)
+   */
+  async _detectAndLockProtocol() {
+    let atdp = '';
+    try {
+      atdp = await this.send('ATDP');
+      this._log('RX', `[ATDP] ${atdp}`);
+    } catch (err) {
+      this._log('RX', `[ATDP] UNVERIFIED: command failed (${err?.message || err})`);
+      return;
+    }
+
+    const forced = this._mapAtdpToAtsp(atdp);
+    if (!forced) {
+      this._log('RX', '[PROTO-LOCK] UNVERIFIED: keeping ATSP0 (auto)');
+      return;
+    }
+
+    await this.send(forced);
+    // Source: https://obdtester.com/elm-usb-commands
+    // ATSP protocol numbers:
+    // 6=ISO15765-4 CAN 11/500, 7=29/500, 8=11/250, 9=29/250.
+    this._log('RX', `[PROTO-LOCK] ${forced} (from ATDP="${atdp}")`);
+  }
+
+  /**
+   * @param {string} atdp
+   * @returns {string | null} ATSP command or null if unrecognized.
+   */
+  _mapAtdpToAtsp(atdp) {
+    const text = String(atdp || '').toUpperCase();
+
+    // Accept both forms seen in the field: "CAN 11/500" and
+    // "CAN (11 BIT ID, 500 KBAUD)".
+    if (/CAN\s*\(?\s*11\s*BIT|CAN\s*11\s*\/\s*500/.test(text) && /500/.test(text)) {
+      return 'ATSP6';
+    }
+    if (/CAN\s*\(?\s*29\s*BIT|CAN\s*29\s*\/\s*500/.test(text) && /500/.test(text)) {
+      return 'ATSP7';
+    }
+    if (/CAN\s*\(?\s*11\s*BIT|CAN\s*11\s*\/\s*250/.test(text) && /250/.test(text)) {
+      return 'ATSP8';
+    }
+    if (/CAN\s*\(?\s*29\s*BIT|CAN\s*29\s*\/\s*250/.test(text) && /250/.test(text)) {
+      return 'ATSP9';
+    }
+    return null;
+  }
+
+  /**
+   * Send optional init command and continue if unsupported.
+   * @param {string} cmd
+   * @param {string} warning
+   * @returns {Promise<boolean>} true if command appears accepted.
+   */
+  async _sendOptionalInit(cmd, warning) {
+    try {
+      const res = await this.send(cmd);
+      if (this._isErrorLike(res)) {
+        this._log('RX', `[INIT] ${cmd} not accepted (${res}) — ${warning}`);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      this._log('RX', `[INIT] ${cmd} failed (${err?.message || err}) — ${warning}`);
+      return false;
+    }
+  }
+
+  /**
+   * @param {string} text
+   * @returns {boolean}
+   */
+  _isErrorLike(text) {
+    return /(\?|\bERROR\b|\bUNABLE TO CONNECT\b|\bNO DATA\b)/i.test(String(text || ''));
   }
 
   /**
@@ -99,6 +203,14 @@ export class ELM327 {
    */
   onLog(callback) {
     this._logCallbacks.push(callback);
+  }
+
+  /**
+   * True when a command is currently in-flight or waiting in queue.
+   * @returns {boolean}
+   */
+  isBusy() {
+    return this._busy || this._queue.length > 0;
   }
 
   /** Process the next item in the command queue if idle. */
@@ -139,6 +251,7 @@ export class ELM327 {
       this._timeoutId = null;
       this._resolve = null;
       this._log('RX', raw);
+      this._checkTruncation(raw);
       const parsed = this._parseResponse(raw, item.command);
       this._queue.shift();
       this._busy = false;
@@ -209,6 +322,46 @@ export class ELM327 {
     this.state = state;
     for (const cb of this._stateCallbacks) {
       cb(state);
+    }
+  }
+
+  /**
+   * Check for ISO-TP multi-frame truncation.
+   * Compares the number of Consecutive Frames received against the total
+   * length declared in the First Frame PCI bytes.
+   *
+   * First Frame format (with ATH1):
+   *   "7EA 10 13 61 01 ..."
+   *    ─── ── ──
+   *    hdr  │  └─ low byte of length
+   *         └─ PCI: 0x1N (N = high nibble of length, usually 0)
+   *
+   * Total ISO-TP length = ((PCI & 0x0F) << 8) | lowByte
+   * First Frame carries 6 data bytes, each Consecutive Frame carries 7.
+   * Expected CFs = ceil((declaredLength - 6) / 7)
+   *
+   * @param {string} raw - Raw response before parsing.
+   */
+  _checkTruncation(raw) {
+    if (!CFG.TRUNCATION_CHECK) return;
+
+    // Match First Frame: [3-hex header] [1X] [YY] where 1X = FF PCI byte
+    const ffMatch = raw.match(/[0-9A-Fa-f]{3}\s+(1[0-9A-Fa-f])\s+([0-9A-Fa-f]{2})/);
+    if (!ffMatch) return; // Single frame — no truncation possible
+
+    const pci = parseInt(ffMatch[1], 16);
+    const lenByte = parseInt(ffMatch[2], 16);
+    const declaredLength = ((pci & 0x0F) << 8) | lenByte;
+
+    // Count Consecutive Frames (header followed by 2X PCI byte)
+    const cfMatches = raw.match(/[0-9A-Fa-f]{3}\s+2[0-9A-Fa-f]/g);
+    const cfCount = cfMatches ? cfMatches.length : 0;
+    const expectedCFs = Math.ceil((declaredLength - 6) / 7);
+
+    if (cfCount < expectedCFs) {
+      this._log('RX',
+        `[TRUNCATED] ISO-TP declared ${declaredLength}B ` +
+        `(need ${expectedCFs} CFs), received only ${cfCount} CFs`);
     }
   }
 

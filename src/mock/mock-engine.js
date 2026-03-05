@@ -78,6 +78,10 @@ export class MockELM {
     this.state = 'idle';
     this._stateListeners = [];
     this._logListeners   = [];
+    this._header = '7DF';
+    this._headersOn = true;
+    this._protocol = 'AUTO, ISO 15765-4 (CAN 11/500)';
+    this._busy = false;
   }
 
   onStateChange(cb) { this._stateListeners.push(cb); }
@@ -88,8 +92,88 @@ export class MockELM {
     for (const cb of this._stateListeners) cb(state);
   }
 
+  _emitLog(direction, text) {
+    for (const cb of this._logListeners) cb(direction, text);
+  }
+
   /** No-op — initialization is driven by MockEngine timing. */
   initialize() { return Promise.resolve(); }
+
+  /**
+   * Minimal command handler to emulate an ELM327 session in mock mode.
+   * Supports init AT commands, header switching and Toyota PID 2101.
+   * @param {string} command
+   * @returns {Promise<string>}
+   */
+  async send(command) {
+    const cmd = String(command || '').trim();
+    const upper = cmd.toUpperCase();
+
+    this._busy = true;
+    this._emitLog('TX', cmd);
+
+    let response = 'OK';
+    let delayMs = 30;
+
+    if (upper === 'ATZ' || upper === 'ATWS') {
+      this._header = '7DF';
+      this._headersOn = true;
+      this._protocol = 'AUTO, ISO 15765-4 (CAN 11/500)';
+      response = 'ELM327 v1.5';
+      delayMs = 80;
+    } else if (upper === 'ATD') {
+      this._header = '7DF';
+      this._headersOn = false;
+      this._protocol = 'AUTO, ISO 15765-4 (CAN 11/500)';
+      response = 'OK';
+    } else if (upper === 'ATH1') {
+      this._headersOn = true;
+      response = 'OK';
+    } else if (upper === 'ATH0') {
+      this._headersOn = false;
+      response = 'OK';
+    } else if (upper === 'ATDP') {
+      response = this._protocol;
+    } else if (upper.startsWith('ATSH ')) {
+      const h = upper.slice(5).trim();
+      if (/^[0-9A-F]{3}$/.test(h)) {
+        this._header = h;
+        response = 'OK';
+      } else {
+        response = '?';
+      }
+    } else if (upper === 'ATSP0') {
+      this._protocol = 'AUTO, ISO 15765-4 (CAN 11/500)';
+      response = 'OK';
+    } else if (/^ATSP[0-9A-F]$/.test(upper)) {
+      response = 'OK';
+    } else if (upper === 'ATFCSD 30 00 00' || upper === 'ATFCSM 1' || upper.startsWith('ATFCSH ')
+      || upper === 'ATE0' || upper === 'ATL0' || upper === 'ATS1' || upper === 'ATAL' || upper === 'ATAT2') {
+      response = 'OK';
+    } else if (upper === '2101') {
+      delayMs = 180;
+      if (this._header === '7E4') {
+        // ATH1-style multi-frame payload with 61 01 echo, used by SOC parser validation.
+        response = this._headersOn
+          ? '7EC 10 0D 61 01 8C 90 7A 6E 7EC 21 6A 73 70 68 64 60 5C'
+          : '10 0D 61 01 8C 90 7A 6E 21 6A 73 70 68 64 60 5C';
+      } else {
+        response = 'NO DATA';
+      }
+    } else {
+      response = 'NO DATA';
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+    this._busy = false;
+    this._emitLog('RX', response);
+    return response;
+  }
+
+  isBusy() {
+    return this._busy;
+  }
 }
 
 // ─── Scenario Registry ────────────────────────────────────────────────────────

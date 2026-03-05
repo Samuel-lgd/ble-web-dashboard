@@ -16,18 +16,29 @@ import { POLLING } from './config.js';
  */
 
 /**
- * Parse helper: extract data bytes from a standard OBD2 response.
- * A response like "41 0C 1A F8" → returns ['1A', 'F8'] (bytes after mode+PID echo).
+ * Parse helper: extract data bytes from a standard OBD2 response (mode 01/02).
+ *
+ * With ATH1 enabled (headers ON), a standard single-frame response looks like:
+ *   "7E8 04 41 0C 1A F8"
+ *    ─── ── ── ── ─────
+ *    hdr PCI mode PID data_bytes
+ *
+ * The 3-char header "7E8" is auto-filtered by the 2-char regex.
+ * Remaining tokens: [PCI, mode_echo, PID_echo, data_A, data_B, ...]
+ * We skip 3 (PCI + mode echo + PID echo) to reach the data bytes.
+ *
  * @param {string} raw - Cleaned response string.
  * @param {number} expectedBytes - Number of data bytes expected.
  * @returns {number[] | null} Array of byte values, or null on parse failure.
  */
 export function parseBytes(raw, expectedBytes) {
   const parts = raw.split(' ').filter((s) => /^[0-9A-Fa-f]{2}$/.test(s));
-  // Standard response: 41 XX [data bytes...]
-  // We skip the first 2 bytes (mode echo + PID echo)
-  if (parts.length < 2 + expectedBytes) return null;
-  const data = parts.slice(2, 2 + expectedBytes);
+  // With ATH1: [PCI, 41, XX, data...] → skip 3 to reach data
+  // The PCI byte (e.g. 04 for 4-byte payload) is the first 2-char token
+  // after the 3-char header is filtered out.
+  const SKIP = 3; // PCI byte + mode echo (41) + PID echo
+  if (parts.length < SKIP + expectedBytes) return null;
+  const data = parts.slice(SKIP, SKIP + expectedBytes);
   return data.map((h) => parseInt(h, 16));
 }
 
