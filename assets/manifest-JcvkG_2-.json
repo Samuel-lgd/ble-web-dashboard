@@ -1,7 +1,8 @@
 {
   "name": "BLE OBD2 Dashboard",
   "short_name": "OBD2",
-  "start_url": ".",
+  "start_url": "/ble-web-dashboard/",
+  "scope": "/ble-web-dashboard/",
   "display": "standalone",
   "background_color": "#1a1a1a",
   "theme_color": "#1a1a1a",

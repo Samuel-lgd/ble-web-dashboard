@@ -1,0 +1,17 @@
+{
+  "name": "OBD2 Dashboard",
+  "short_name": "Dashboard",
+  "start_url": "/ble-web-dashboard/",
+  "scope": "/ble-web-dashboard/",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#1a1a1a",
+  "description": "Web Bluetooth OBD2 vehicle dashboard with Toyota Hybrid support",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%231a1a1a'/><text x='50' y='55' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='40' fill='%234fc3f7'>OBD</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
