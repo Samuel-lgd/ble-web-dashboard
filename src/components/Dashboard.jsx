@@ -13,14 +13,14 @@ import TripBar from './TripBar';
 export default function Dashboard({ onNavigateTrips }) {
   return (
     <div className="h-full w-full flex flex-col">
-      {/* Main 3-column area — reduced padding for max density */}
+      {/* Main 3-column area — edge-to-edge, no padding */}
       <div className="flex-1 flex min-h-0">
         {/* LEFT — Thermal (amber/orange/red palette) */}
-        <div className="w-[27%] flex flex-col p-0.5 gap-0.5 min-h-0">
+        <div className="w-[27%] flex flex-col gap-px min-h-0">
           <div className="flex-[4] min-h-0">
             <RpmGauge />
           </div>
-          <div className="flex-[2.5] flex gap-0.5 min-h-0">
+          <div className="flex-[2.5] flex gap-px min-h-0">
             <div className="flex-1 min-h-0">
               <EngineThermalStatus />
             </div>
@@ -29,7 +29,7 @@ export default function Dashboard({ onNavigateTrips }) {
         </div>
 
         {/* CENTER — Speed + Avg Consumption */}
-        <div className="flex-1 flex flex-col p-0.5 gap-0.5 min-h-0">
+        <div className="flex-1 flex flex-col gap-px min-h-0">
           <div className="flex-[5] min-h-0">
             <SpeedGauge />
           </div>
@@ -39,11 +39,11 @@ export default function Dashboard({ onNavigateTrips }) {
         </div>
 
         {/* RIGHT — Electric (blue/cyan/green palette) */}
-        <div className="w-[27%] flex flex-col p-0.5 gap-0.5 min-h-0">
+        <div className="w-[27%] flex flex-col gap-px min-h-0">
           <div className="flex-[4] min-h-0">
             <HvBatterySocGauge />
           </div>
-          <div className="flex-[3] flex gap-0.5 min-h-0">
+          <div className="flex-[3] flex gap-px min-h-0">
             <div className="flex-1 min-h-0">
               <RegenAccelDelta />
             </div>
