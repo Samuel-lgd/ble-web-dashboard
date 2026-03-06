@@ -31,14 +31,18 @@ export class MockStoreBridge {
    * Write all simulation state values to the store.
    * Called on every simulation tick.
    * @param {object} s - Current simulation state from MockEngine.
+   * @param {number|null} manualEngineLoadPercent - Manual engine load override (null = auto).
    */
-  update(s) {
+  update(s, manualEngineLoadPercent = null) {
     const { _store: store } = this;
     const u = (key, value) => store.update(key, value);
 
     // ── Standard OBD2 PIDs ──────────────────────────────────────────────────
     u(PID_KEYS.ENGINE_RPM,         s.engineRpm);
-    u(PID_KEYS.ENGINE_LOAD,        s.engineOn ? Math.min(100, (s.engineRpm / 5800) * s.throttlePercent) : 0);
+    const engineLoad = manualEngineLoadPercent !== null 
+      ? manualEngineLoadPercent
+      : (s.engineOn ? Math.min(100, (s.engineRpm / 5800) * s.throttlePercent) : 0);
+    u(PID_KEYS.ENGINE_LOAD,        engineLoad);
     u(PID_KEYS.VEHICLE_SPEED,      s.speedKmh);
     u(PID_KEYS.COOLANT_TEMP,       s.coolantTempC);
     u(PID_KEYS.INTAKE_AIR_TEMP,    s.intakeTempC);

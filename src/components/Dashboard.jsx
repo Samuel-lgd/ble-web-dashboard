@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import SpeedGauge from './gauges/SpeedGauge';
 import ConsumptionHistory from './charts/ConsumptionHistory';
 import EnginePowerGauge from './gauges/EnginePowerGauge';
-import EngineThermalStatus from './badges/EngineThermalStatus';
+import EngineThermalStatus from './EngineThermalStatus';
 import FuelLevelGauge from './gauges/FuelLevelGauge';
 import HvBatterySocGauge from './gauges/HvBatterySocGauge';
-import RegenAccelDelta from './visualizations/RegenAccelDelta';
+import RegenAccelDelta from './RegenAccelDelta';
 import BleConnectPanel from './BleConnectPanel';
 import { useDashboard } from './DashboardContext';
 import { TRANSPORT_MODE } from '../../config.js';
@@ -35,15 +35,6 @@ function CenterBottomPanel() {
     (bleState === 'connected' && elmState === 'ready');
 
   return operational ? <ConsumptionHistory /> : <BleConnectPanel />;
-}
-
-function TripPill({ label, value, color = '#999' }) {
-  return (
-    <div className="trip-pill flex items-center gap-1">
-      <span className="text-[6px] text-gray-600" style={{ fontFamily: 'Orbitron, monospace' }}>{label}</span>
-      <span className="text-[8px] font-bold" style={{ fontFamily: 'Orbitron, monospace', color }}>{value}</span>
-    </div>
-  );
 }
 
 export default function Dashboard({ onNavigateTrips, onNavigateDebug }) {
@@ -90,15 +81,13 @@ export default function Dashboard({ onNavigateTrips, onNavigateDebug }) {
             <div className="absolute left-1/2 -translate-x-1/2 flex gap-40 top-2 opacity-80">
               <button
                 onClick={onNavigateDebug}
-                className="cluster-nav-btn cluster-nav-btn--amber"
-                style={{ fontFamily: 'Orbitron, monospace' }}
+                className="cluster-nav-btn cluster-nav-btn--amber font-orbitron"
               >
                 DEBUG
               </button>
               <button
                 onClick={onNavigateTrips}
-                className="cluster-nav-btn cluster-nav-btn--cyan"
-                style={{ fontFamily: 'Orbitron, monospace' }}
+                className="cluster-nav-btn cluster-nav-btn--cyan font-orbitron"
               >
                 TRIPS
               </button>

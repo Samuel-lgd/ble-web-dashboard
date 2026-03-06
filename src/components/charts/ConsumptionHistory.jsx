@@ -64,8 +64,6 @@ export default function ConsumptionHistory() {
   const trendColor = trendDir < -0.1 ? '#22c55e' : trendDir > 0.1 ? '#f97316' : '#f59e0b';
   const trendArrow = trendDir < -0.1 ? '↓' : trendDir > 0.1 ? '↑' : '→';
 
-  const font = { fontFamily: 'Orbitron, monospace' };
-
   return (
     <div className="w-full h-full relative overflow-hidden flex flex-col"
       style={{
@@ -76,7 +74,7 @@ export default function ConsumptionHistory() {
       }}>
       {/* Header row with label left & value pill top-right */}
       <div className="flex items-center justify-between px-2 pt-1 flex-shrink-0">
-        <span className="text-[6px] text-amber-700 tracking-wider" style={font}>
+        <span className="text-[6px] text-amber-700 tracking-wider font-orbitron">
           AVG CONSUMPTION
         </span>
         <div className="flex items-baseline gap-0.5 px-1.5 py-0.5"
@@ -85,14 +83,14 @@ export default function ConsumptionHistory() {
             border: '1px solid rgba(245,158,11,0.25)',
             borderRadius: '4px',
           }}>
-          <span className="text-[17px] font-bold leading-none"
-            style={{ ...font, fontWeight: 700, color: '#e0e0e0' }}>
+          <span className="text-[17px] font-bold leading-none font-orbitron"
+            style={{ fontWeight: 700, color: '#e0e0e0' }}>
             {tripAvg > 0 ? tripAvg.toFixed(2) : '—'}
           </span>
-          <span className="text-[6px] text-amber-600" style={font}>
+          <span className="text-[6px] text-amber-600 font-orbitron">
             L/100
           </span>
-          <span className="text-[7px] ml-0.5" style={{ ...font, color: trendColor }}>
+          <span className="text-[7px] ml-0.5 font-orbitron" style={{ color: trendColor }}>
             {trendArrow}
           </span>
         </div>

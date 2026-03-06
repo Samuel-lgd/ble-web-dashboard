@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, BezelDefs } from '../gauges/gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, BezelDefs, GaugeBezel } from '../gauges/gauge-utils.jsx';
 
 /**
  * MG2 Motor activity — arc gauge showing drive motor torque output in Nm.
@@ -35,8 +35,7 @@ export default function Mg2MotorActivity() {
         </defs>
 
         {/* Mini bezel */}
-        <circle cx="0" cy="0" r="34" fill="url(#mg2-bezel-ring)" stroke="#1a1a1c" strokeWidth="0.5" />
-        <circle cx="0" cy="0" r="31" fill="url(#mg2-face)" />
+        <GaugeBezel id="mg2" outerR={34} innerR={31} outerStrokeWidth={0.5} shadowStrokeWidth={0} />
 
         {/* Background arc track */}
         <path d={describeArc(0, 0, 26, -120, 120)}
@@ -54,17 +53,15 @@ export default function Mg2MotorActivity() {
           return <circle cx={cx} cy={cy} r="1" fill="#666" />;
         })()}
 
-        {/* Torque value */}
         <text x="0" y="2" fill="#e0e0e0" fontSize="8" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
+          className="font-orbitron" style={{ fontWeight: 700 }}>
           {Math.round(torqueAbs)}
         </text>
         <text x="0" y="9" fill="#555" fontSize="3" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace' }}>Nm</text>
+          className="font-orbitron">Nm</text>
 
-        {/* Mode label */}
         <text x="0" y="18" fill={color} fontSize="3.5" textAnchor="middle" opacity="0.7"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 600 }}>
+          className="font-orbitron" style={{ fontWeight: 600 }}>
           MG2 {label}
         </text>
       </svg>

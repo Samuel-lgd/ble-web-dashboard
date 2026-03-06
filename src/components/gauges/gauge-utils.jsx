@@ -1,8 +1,12 @@
-/**
- * SVG gauge utility functions.
- * Shared math for arc paths, needle angles, tick marks.
- */
+// SVG gauge utilities: arc paths, needle angles, tick marks, smoothed value interpolation
 import { useState, useEffect, useRef } from 'react';
+
+/**
+ * Stable font-style reference for Orbitron gauge typography.
+ * Use `style={ORBITRON}` in SVG <text> or combine via `{ ...ORBITRON, fontWeight }` .
+ * Prefer `className="font-orbitron"` in HTML/SVG elements where no spread is needed.
+ */
+export const ORBITRON = { fontFamily: 'Orbitron, monospace' };
 
 export const START_ANGLE = -135;
 export const END_ANGLE = 135;
@@ -40,6 +44,36 @@ export function generateTicks(min, max, majorStep, minorStep, radius, cx = 0, cy
   return ticks;
 }
 
+/**
+ * Reusable SVG tick marks renderer for circular gauges.
+ * Replaces identical map-over-generateTicks blocks in Rpm, EnginePower, FuelConsumption gauges.
+ */
+export function TickMarks({
+  ticks, labelRadius, min, max,
+  fontSize = '4', fill = '#666',
+  majorStroke = '#777', minorStroke = '#444',
+  majorWidth = 1, minorWidth = 0.5,
+  labelFn = (v) => v,
+}) {
+  return ticks.map(({ v, ox, oy, ix, iy, isMajor }) => (
+    <g key={v}>
+      <line x1={ix} y1={iy} x2={ox} y2={oy}
+        stroke={isMajor ? majorStroke : minorStroke}
+        strokeWidth={isMajor ? majorWidth : minorWidth} />
+      {isMajor && (
+        <text
+          x={polarToXY(0, 0, labelRadius, valueToAngle(v, min, max))[0]}
+          y={polarToXY(0, 0, labelRadius, valueToAngle(v, min, max))[1]}
+          fill={fill} fontSize={fontSize}
+          textAnchor="middle" dominantBaseline="central"
+          className="font-orbitron">
+          {labelFn(v)}
+        </text>
+      )}
+    </g>
+  ));
+}
+
 export const SHIFT_MAP = { 0: 'P', 1: 'R', 2: 'N', 3: 'D', 4: 'B', 80: 'P', 82: 'R', 78: 'N', 68: 'D', 66: 'B' };
 
 export function shiftLabel(val) {
@@ -72,17 +106,62 @@ export function BezelDefs({ id = 'bezel' }) {
   );
 }
 
-/** SVG needle with center cap rivet */
-export function Needle({ angle, length = 35, cx = 0, cy = 0, color = '#ff3333' }) {
-  const [tx, ty] = polarToXY(cx, cy, length, angle);
-  const [bx, by] = polarToXY(cx, cy, 4, angle + 180);
+/** Reusable circular bezel + face + inner shadow. Used by 8+ gauge components. */
+export function GaugeBezel({ id, outerR, innerR, outerStrokeWidth = 0.8, shadowStrokeWidth = 1.5 }) {
   return (
-    <g className="gauge-needle-line" style={{ transform: `rotate(0deg)` }}>
-      <line x1={bx} y1={by} x2={tx} y2={ty} stroke={color} strokeWidth="1.8" strokeLinecap="round" />
-      <line x1={bx} y1={by} x2={tx} y2={ty} stroke="url(#needle-glow)" strokeWidth="3" strokeLinecap="round" opacity="0.3" />
-      <circle cx={cx} cy={cy} r="3.5" fill="url(#bezel-cap)" stroke="#222" strokeWidth="0.5" />
-      <circle cx={cx} cy={cy} r="1.5" fill="#555" />
-    </g>
+    <>
+      <circle cx="0" cy="0" r={outerR} fill={`url(#${id}-bezel-ring)`} stroke="#1a1a1c" strokeWidth={outerStrokeWidth} />
+      <circle cx="0" cy="0" r={innerR} fill={`url(#${id}-face)`} />
+      {shadowStrokeWidth > 0 && (
+        <circle cx="0" cy="0" r={innerR} fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth={shadowStrokeWidth} />
+      )}
+    </>
+  );
+}
+
+/**
+ * Reusable SVG glow filter. Covers both simple glow (blur + overlay) and
+ * tinted glow (blur + color matrix + overlay). Replaces 11+ hand-written
+ * filter definitions across gauge/visualization components.
+ */
+export function GlowFilter({ id, stdDeviation = 1.5, colorMatrix, ...filterAttrs }) {
+  return (
+    <filter id={id} {...filterAttrs}>
+      <feGaussianBlur in="SourceGraphic" stdDeviation={stdDeviation} result="blur" />
+      {colorMatrix ? (
+        <>
+          <feColorMatrix in="blur" type="matrix" values={colorMatrix} result="tinted" />
+          <feMerge><feMergeNode in="tinted" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </>
+      ) : (
+        <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+      )}
+    </filter>
+  );
+}
+
+/** Reusable SVG needle with optional glow line and center cap rivet. */
+export function GaugeNeedle({
+  angle, length = 35, backLength = 4,
+  color = '#ff3333', strokeWidth = 1.5,
+  glowColor, glowWidth, glowOpacity = 0.2,
+  capId, capR = 3, dotR = 1.2,
+}) {
+  const [nx, ny] = polarToXY(0, 0, length, angle);
+  const [nbx, nby] = polarToXY(0, 0, backLength, angle + 180);
+  return (
+    <>
+      <line x1={nbx} y1={nby} x2={nx} y2={ny}
+        stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
+        className="gauge-needle-line" />
+      {glowColor && (
+        <line x1={nbx} y1={nby} x2={nx} y2={ny}
+          stroke={glowColor} strokeWidth={glowWidth ?? strokeWidth * 2} strokeLinecap="round"
+          opacity={glowOpacity} className="gauge-needle-line" />
+      )}
+      <circle cx="0" cy="0" r={capR} fill={`url(#${capId}-cap)`} stroke="#1a1a1c" strokeWidth="0.3" />
+      <circle cx="0" cy="0" r={dotR} fill="#555" />
+    </>
   );
 }
 
@@ -101,6 +180,13 @@ export function useSmoothedValue(target) {
   const targetRef    = useRef(target);
   const durationRef  = useRef(300);          // initial guess
 
+  //   const DURATION = 250;
+
+  // if (target !== targetRef.current) {
+  //   targetRef.current = target;
+  // }
+
+
   // Track last two target-change timestamps to derive the polling interval
   const lastChangeRef = useRef(performance.now());
 
@@ -113,7 +199,7 @@ export function useSmoothedValue(target) {
     targetRef.current = target;
 
     // EMA with α=0.3 — responsive but not jittery
-    if (measured > 30 && measured < 10000) {
+    if (measured > 30 && measured < 1000) {
       durationRef.current = durationRef.current * 0.7 + measured * 0.3;
     }
   }
@@ -152,25 +238,33 @@ export function useSmoothedValue(target) {
   return displayed;
 }
 
-/** Reusable SVG circular gauge shell with chrome bezel */
-export function GaugeShell({ size = 100, children, className = '' }) {
-  const r = size / 2;
+/**
+ * Shared numeric + unit readout used by multiple gauges.
+ * Pure presentational helper to keep markup consistent without changing visuals.
+ */
+export function GaugeValueReadout({
+  value,
+  unit,
+  x = 0,
+  yValue,
+  yUnit,
+  valueFill = '#e0e0e0',
+  unitFill = '#555',
+  valueFontSize = 12,
+  unitFontSize = 4,
+  valueWeight = 700,
+  textAnchor = 'middle',
+}) {
   return (
-    <svg viewBox={`${-r} ${-r} ${size} ${size}`} className={`w-full h-full ${className}`}>
-      <defs>
-        <BezelDefs id="bezel" />
-        <radialGradient id="needle-glow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#ff6666" stopOpacity="0.6" />
-          <stop offset="100%" stopColor="#ff3333" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      {/* Outer bezel ring */}
-      <circle cx="0" cy="0" r={r - 1} fill="url(#bezel-bezel-ring)" stroke="#1a1a1c" strokeWidth="1" />
-      {/* Inner face circle */}
-      <circle cx="0" cy="0" r={r - 4} fill="url(#bezel-face)" />
-      {/* Subtle inner shadow */}
-      <circle cx="0" cy="0" r={r - 4} fill="none" stroke="rgba(0,0,0,0.4)" strokeWidth="2" />
-      {children}
-    </svg>
+    <>
+      <text x={x} y={yValue} fill={valueFill} fontSize={valueFontSize} textAnchor={textAnchor}
+        className="font-orbitron" style={{ fontWeight: valueWeight }}>
+        {value}
+      </text>
+      <text x={x} y={yUnit} fill={unitFill} fontSize={unitFontSize} textAnchor={textAnchor}
+        className="font-orbitron">
+        {unit}
+      </text>
+    </>
   );
 }

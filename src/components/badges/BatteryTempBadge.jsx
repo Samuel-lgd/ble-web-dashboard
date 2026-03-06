@@ -1,6 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
+import { colorByGreaterThan } from '../ui/thresholds.js';
 
 /**
  * Battery temperature — compact badge panel.
@@ -10,15 +11,14 @@ export default function BatteryTempBadge() {
   const temp = usePid(PID_KEYS.HV_BATT_TEMP_INTAKE) ?? 0;
 
   // Color by range
-  let color = '#3b82f6'; // blue (cold <20°C)
-  let bg = 'rgba(59,130,246,0.1)';
-  if (temp > 40) { color = '#f97316'; bg = 'rgba(249,115,22,0.1)'; }
-  else if (temp > 25) { color = '#22c55e'; bg = 'rgba(34,197,94,0.1)'; }
+  const color = colorByGreaterThan(temp, '#3b82f6', [
+    { gt: 25, color: '#22c55e' },
+    { gt: 40, color: '#f97316' },
+  ]);
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center gap-0.5 py-0.5">
-      <span className="text-[5px] text-gray-500 tracking-wider"
-        style={{ fontFamily: 'Orbitron, monospace' }}>
+      <span className="text-[5px] text-gray-500 tracking-wider font-orbitron">
         BATT
       </span>
 
@@ -40,7 +40,7 @@ export default function BatteryTempBadge() {
         />
       </div>
 
-      <span className="text-[8px] font-bold" style={{ fontFamily: 'Orbitron, monospace', color }}>
+      <span className="text-[8px] font-bold font-orbitron" style={{ color }}>
         {Math.round(temp)}°
       </span>
     </div>

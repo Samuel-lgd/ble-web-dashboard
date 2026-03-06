@@ -1,6 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
-import { PID_KEYS } from '../pid-keys.js';
+import { PID_KEYS } from '../../pid-keys.js';
+import { BezelDefs, GaugeBezel, GlowFilter, ORBITRON } from '../gauges/gauge-utils.jsx';
 
 /**
  * Power flow diagram — replaces BatteryCurrentGauge in right column.
@@ -31,42 +32,20 @@ export default function PowerFlowDiagram() {
   const wheelsToBattery = isRegen;
   const engineToBattery = engineOn && hvCurrent < -1 && !isMoving;
 
-  const font = { fontFamily: 'Orbitron, monospace' };
+  const font = ORBITRON;
 
   return (
     <div className="w-full h-full flex items-center justify-center">
       <svg viewBox="-44 -44 88 88" className="w-full h-full">
         <defs>
-          <radialGradient id="pf-face" cx="50%" cy="48%" r="50%">
-            <stop offset="0%" stopColor="#14141a" />
-            <stop offset="70%" stopColor="#0a0a0c" />
-            <stop offset="100%" stopColor="#050508" />
-          </radialGradient>
-          <linearGradient id="pf-bezel-ring" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#4a4a50" />
-            <stop offset="25%" stopColor="#2a2a2e" />
-            <stop offset="50%" stopColor="#5a5a60" />
-            <stop offset="75%" stopColor="#3a3a3e" />
-            <stop offset="100%" stopColor="#4a4a50" />
-          </linearGradient>
-          <filter id="pf-glow-green">
-            <feGaussianBlur stdDeviation="1" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-          <filter id="pf-glow-blue">
-            <feGaussianBlur stdDeviation="1" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-          <filter id="pf-glow-amber">
-            <feGaussianBlur stdDeviation="1" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
+          <BezelDefs id="pf" />
+          <GlowFilter id="pf-glow-green" />
+          <GlowFilter id="pf-glow-blue" />
+          <GlowFilter id="pf-glow-amber" />
         </defs>
 
         {/* Chrome bezel */}
-        <circle cx="0" cy="0" r="42" fill="url(#pf-bezel-ring)" stroke="#1a1a1c" strokeWidth="0.6" />
-        <circle cx="0" cy="0" r="39" fill="url(#pf-face)" />
-        <circle cx="0" cy="0" r="39" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="1" />
+        <GaugeBezel id="pf" outerR={42} innerR={39} outerStrokeWidth={0.6} shadowStrokeWidth={1} />
 
         {/* === Node: ENGINE (top left) === */}
         <rect x="-34" y="-32" width="24" height="11" rx="2"

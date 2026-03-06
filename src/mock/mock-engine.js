@@ -204,6 +204,7 @@ function createInitialState(ambientTemp = 14) {
     throttlePercent: 0,
     fuelRateLh:      0,
     injectorVolumeMl: 0,
+    fuelLevelPercent: 72,
 
     // Hybrid system
     hvSocPercent:    58,
@@ -262,6 +263,7 @@ export class MockEngine {
     // Manual override flags (set by control panel)
     this._forceRegenTicks  = 0;
     this._forceAccelTicks  = 0;
+    this._manualEngineLoadPercent = null; // null = auto, 0-100 = manual
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -346,6 +348,16 @@ export class MockEngine {
     this._state.coolantTempC = clamp(celsius, 20, 120);
   }
 
+  /** Override fuel level directly (control panel slider). */
+  setFuelLevel(percent) {
+    this._state.fuelLevelPercent = clamp(percent, 0, 100);
+  }
+
+  /** Override engine load directly (control panel slider). */
+  setEngineLoad(percent) {
+    this._manualEngineLoadPercent = percent !== null ? clamp(percent, 0, 100) : null;
+  }
+
   /** Trigger 5 seconds of simulated hard braking / regen. */
   forceRegen() {
     this._forceRegenTicks = Math.ceil(5000 / this._tickMs);
@@ -410,7 +422,7 @@ export class MockEngine {
     this._updatePhysics(dtSec);
 
     // ── Write to store ──────────────────────────────────────────────────────
-    this._bridge.update(this._state);
+    this._bridge.update(this._state, this._manualEngineLoadPercent);
   }
 
   // ── Scenario management ────────────────────────────────────────────────────

@@ -1,17 +1,9 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, BezelDefs, useSmoothedValue } from './gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, BezelDefs, useSmoothedValue, GlowFilter } from './gauge-utils.jsx';
 
-/**
- * Speed gauge — the hero centerpiece.
- * Octagonal bezel shape. Two side arcs with graduated ticks:
- *   Left arc: L/100km (0-30), amber, with tick marks along the arc.
- *   Right arc: kW (0-30), electric blue, with tick marks along the arc.
- * The colored fill on each arc IS the indicator — no separate needle.
- * Large km/h display centered. Numeric L/100 and kW flanking the speed.
- * EV/HV mode badge centered below speed.
- */
+// Speed gauge with octagonal bezel, consumption & power arcs, km/h display
 export default function SpeedGauge() {
   const speed = usePid(PID_KEYS.VEHICLE_SPEED) ?? 0;
   const fuelRate = usePid(PID_KEYS.FUEL_RATE) ?? 0;
@@ -64,20 +56,8 @@ export default function SpeedGauge() {
             <stop offset="0%" stopColor="#00cfff" />
             <stop offset="100%" stopColor="#22d3ee" />
           </linearGradient>
-          <filter id="glow-amber" filterUnits="userSpaceOnUse" x="-75" y="-75" width="150" height="150">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <filter id="glow-blue" filterUnits="userSpaceOnUse" x="-75" y="-75" width="150" height="150">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
+          <GlowFilter id="glow-amber" stdDeviation={2} filterUnits="userSpaceOnUse" x="-75" y="-75" width="150" height="150" />
+          <GlowFilter id="glow-blue" stdDeviation={2} filterUnits="userSpaceOnUse" x="-75" y="-75" width="150" height="150" />
         </defs>
 
         {/* Octagonal bezel */}
@@ -151,7 +131,7 @@ export default function SpeedGauge() {
           textAnchor="middle"
           dominantBaseline="middle"
           opacity="0.5"
-          style={{ fontFamily: 'Orbitron, monospace' }}
+          className="font-orbitron"
         >
           {30}
         </text>
@@ -177,7 +157,7 @@ export default function SpeedGauge() {
                   textAnchor="middle"
                   dominantBaseline="middle"
                   opacity="0.5"
-                  style={{ fontFamily: 'Orbitron, monospace' }}
+                  className="font-orbitron"
                 >
                   {v}
                 </text>
@@ -207,7 +187,7 @@ export default function SpeedGauge() {
                   textAnchor="middle"
                   dominantBaseline="middle"
                   opacity="0.5"
-                  style={{ fontFamily: 'Orbitron, monospace' }}
+                  className="font-orbitron"
                 >
                   {v}
                 </text>
@@ -226,7 +206,7 @@ export default function SpeedGauge() {
           fontSize="9"
           textAnchor="end"
           dominantBaseline="middle"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 600 }}
+          className="font-orbitron" style={{ fontWeight: 600 }}
         >
           {l100km.toFixed(1)}
         </text>
@@ -237,7 +217,7 @@ export default function SpeedGauge() {
           fill="#f59e0b"
           fontSize="3.5"
           textAnchor="end"
-          style={{ fontFamily: 'Orbitron, monospace' }}
+          className="font-orbitron"
         >
           L/100
         </text>
@@ -250,7 +230,7 @@ export default function SpeedGauge() {
           fontSize="28"
           textAnchor="middle"
           dominantBaseline="middle"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}
+          className="font-orbitron" style={{ fontWeight: 700 }}
         >
           {Math.round(smoothSpeed)}
         </text>
@@ -260,7 +240,7 @@ export default function SpeedGauge() {
           fill="#666"
           fontSize="6"
           textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace' }}
+          className="font-orbitron"
         >
           km/h
         </text>
@@ -274,7 +254,7 @@ export default function SpeedGauge() {
           fontSize="9"
           textAnchor="start"
           dominantBaseline="middle"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 600 }}
+          className="font-orbitron" style={{ fontWeight: 600 }}
         >
           {kwDraw.toFixed(1)}
         </text>
@@ -285,7 +265,7 @@ export default function SpeedGauge() {
           fontSize="3.5"
           textAnchor="start"
           opacity="0.6"
-          style={{ fontFamily: 'Orbitron, monospace' }}
+          className="font-orbitron"
         >
           kW
         </text>
@@ -303,12 +283,11 @@ export default function SpeedGauge() {
         />
         <text
           x="0"
-          y="28"
+          y="29.5"
           fill={isEv ? '#00cfff' : '#f59e0b'}
           fontSize="8"
           textAnchor="middle"
-          dominantBaseline="middle"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}
+          className="font-orbitron" style={{ fontWeight: 700 }}
         >
           {isEv ? 'EV' : 'HV'}
         </text>

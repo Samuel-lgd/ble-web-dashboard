@@ -7,20 +7,10 @@ import './index.css';
 import { TRANSPORT_MODE } from '../config.js';
 import { Store } from '../store.js';
 import { TripManager } from './trips/trip-manager.js';
+import { POLLING, ELM327 as ELM_CFG } from '../config.js';
+import { selectPolledPids } from '../pid-selection.js';
 
-/**
- * Application entry point.
- *
- * TRANSPORT_MODE === 'mock':
- *   Loads MockEngine via dynamic import (tree-shakeable in production builds).
- *   MockAdapter + MockELM replace BLEAdapter + ELM327 so DashboardContext
- *   receives the exact same interface it expects from the real pipeline.
- *   MockEngine feeds store.js directly on each simulation tick.
- *
- * TRANSPORT_MODE === 'ble' (default for production):
- *   Identical to original pipeline: BLE → ELM327 → PIDManager → Store.
- *   Zero mock code is included — the dynamic import branch is never executed.
- */
+// App entry point. TRANSPORT_MODE controls mock vs real BLE pipeline
 
 const root = createRoot(document.getElementById('app'));
 
@@ -28,13 +18,10 @@ async function bootstrap() {
   const store       = new Store();
   const tripManager = new TripManager(store);
 
-  let adapter, elm, mockEngineInstance = null, MockPanel = null;
+  let adapter, elm, pidManager = null, mockEngineInstance = null, MockPanel = null;
 
   if (TRANSPORT_MODE === 'mock') {
     // ── Mock mode ────────────────────────────────────────────────────────────
-    // Dynamic imports keep all mock code in a separate chunk.
-    // In a production build with TRANSPORT_MODE = 'ble', this branch is dead
-    // code and Vite/Rollup excludes the mock chunk from the output.
     const [mockModule, panelModule] = await Promise.all([
       import('./mock/mock-engine.js'),
       import('./mock/MockControlPanel.jsx'),
@@ -78,10 +65,18 @@ async function bootstrap() {
     elm     = new ELM327(adapter);
 
     const atsh       = new ATSHManager(elm);
-    const pidManager = new PIDManager(elm, atsh, store);
+    pidManager = new PIDManager(elm, atsh, store);
 
-    pidManager.addPIDs(STANDARD_PIDS);
-    pidManager.addPIDs(TOYOTA_PIDS);
+    const includeAll = POLLING.PROFILE === 'all';
+    const { selected, missingKeys, selectedKeys } = selectPolledPids(STANDARD_PIDS, TOYOTA_PIDS, { includeAll });
+    pidManager.addPIDs(selected);
+
+    if (!includeAll) {
+      console.log(`[POLL] profile=ui selected=${selected.length} keys=${selectedKeys.length}`);
+    }
+    if (missingKeys.length) {
+      console.warn('[POLL] Missing PID definitions for keys:', missingKeys);
+    }
 
     let connected = false;
 
@@ -96,8 +91,17 @@ async function bootstrap() {
       }
     });
 
-    elm.onStateChange((elmState) => {
+    elm.onStateChange(async (elmState) => {
       if (elmState === 'ready') {
+        // Post-init performance tuning:
+        // 1. Set ATST polling ceiling (lower → faster NO DATA detection)
+        // 2. One-time FC setup (ATFCSD + ATFCSM persist across ATSH changes)
+        try {
+          await elm.setPollingTimeout(ELM_CFG.POLL_TIMEOUT_TICKS);
+          await atsh.initFlowControl();
+        } catch (e) {
+          console.warn('[INIT] Post-init tuning partially failed:', e.message);
+        }
         connected = true;
         pidManager.start();
         tripManager.enableAutoDetect();
@@ -110,6 +114,7 @@ async function bootstrap() {
   // Expose shared globals for console debugging
   window.tripManager = tripManager;
   window.store       = store;
+  window.pidManager  = pidManager;
 
   // Mount React — same component tree regardless of transport mode
   root.render(
@@ -118,6 +123,7 @@ async function bootstrap() {
       tripManager={tripManager}
       adapter={adapter}
       elm={elm}
+      pidManager={pidManager}
     >
       <App />
       {MockPanel && <MockPanel engine={mockEngineInstance} />}

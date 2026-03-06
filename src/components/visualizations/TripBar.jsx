@@ -32,14 +32,14 @@ export default function TripBar({ onClick }) {
       {isRecording ? (
         <div className="flex items-center gap-1 flex-shrink-0">
           <div className="trip-rec-dot" />
-          <span className="text-[6px] text-red-500/80" style={{ fontFamily: 'Orbitron, monospace' }}>
+          <span className="text-[6px] text-red-500/80 font-orbitron">
             REC
           </span>
         </div>
       ) : (
         <div className="flex items-center gap-1 flex-shrink-0 opacity-30">
           <div className="w-1.5 h-1.5 rounded-full bg-gray-600" />
-          <span className="text-[6px] text-gray-600" style={{ fontFamily: 'Orbitron, monospace' }}>
+          <span className="text-[6px] text-gray-600 font-orbitron">
             TRIPS
           </span>
         </div>
@@ -61,10 +61,10 @@ export default function TripBar({ onClick }) {
 function Pill({ label, value, color = '#999', dim = false }) {
   return (
     <div className="trip-pill flex items-center gap-1" style={{ opacity: dim ? 0.35 : 1 }}>
-      <span className="text-[6px] text-gray-600" style={{ fontFamily: 'Orbitron, monospace' }}>
+      <span className="text-[6px] text-gray-600 font-orbitron">
         {label}
       </span>
-      <span className="text-[8px] font-bold" style={{ fontFamily: 'Orbitron, monospace', color }}>
+      <span className="text-[8px] font-bold font-orbitron" style={{ color }}>
         {value}
       </span>
     </div>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs, useSmoothedValue } from './gauge-utils.jsx';
+import { valueToAngle, describeArc, generateTicks, BezelDefs, useSmoothedValue, GaugeValueReadout, GaugeBezel, GaugeNeedle, TickMarks } from './gauge-utils.jsx';
 
 /**
  * Engine Power gauge — shows OBD2 PID 0104 (Calculated Engine Load) as 0–100%.
@@ -16,8 +16,6 @@ export default function EnginePowerGauge() {
 
   const needleAngle = valueToAngle(smoothLoad, 0, 100);
   const ticks = generateTicks(0, 100, 10, 5, 42);
-  const [nx, ny] = polarToXY(0, 0, 36, needleAngle);
-  const [nbx, nby] = polarToXY(0, 0, 4, needleAngle + 180);
 
   const zoneColor =
     smoothLoad >= 85 ? '#ef4444' :
@@ -30,17 +28,9 @@ export default function EnginePowerGauge() {
       <svg viewBox="-50 -50 100 100" className="w-full h-full" style={{ overflow: 'visible' }}>
         <defs>
           <BezelDefs id="epwr" />
-          <radialGradient id="epwr-needle-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#ff6644" stopOpacity="0.5" />
-            <stop offset="100%" stopColor="#ff3333" stopOpacity="0" />
-          </radialGradient>
         </defs>
 
-        {/* Chrome bezel ring */}
-        <circle cx="0" cy="0" r="48" fill="url(#epwr-bezel-ring)" stroke="#1a1a1c" strokeWidth="0.8" />
-        {/* Gauge face */}
-        <circle cx="0" cy="0" r="45" fill="url(#epwr-face)" />
-        <circle cx="0" cy="0" r="45" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="1.5" />
+        <GaugeBezel id="epwr" outerR={48} innerR={45} />
 
         {/* Arc zones */}
         {/* Eco: 0–40% → green */}
@@ -69,54 +59,26 @@ export default function EnginePowerGauge() {
         )}
 
         {/* Engraved tick marks */}
-        {ticks.map(({ v, ox, oy, ix, iy, isMajor }) => (
-          <g key={v}>
-            <line x1={ix} y1={iy} x2={ox} y2={oy}
-              stroke={isMajor ? '#777' : '#444'}
-              strokeWidth={isMajor ? 1 : 0.5} />
-            {isMajor && (
-              <text
-                x={polarToXY(0, 0, 32, valueToAngle(v, 0, 100))[0]}
-                y={polarToXY(0, 0, 32, valueToAngle(v, 0, 100))[1]}
-                fill="#666"
-                fontSize="4"
-                textAnchor="middle"
-                dominantBaseline="central"
-                style={{ fontFamily: 'Orbitron, monospace' }}
-              >
-                {v}
-              </text>
-            )}
-          </g>
-        ))}
+        <TickMarks ticks={ticks} labelRadius={32} min={0} max={100} />
 
-        {/* Needle */}
-        <line x1={nbx} y1={nby} x2={nx} y2={ny}
-          stroke="#ff3333" strokeWidth="1.5" strokeLinecap="round"
-          className="gauge-needle-line" />
-        {/* Needle glow */}
-        <line x1={nbx} y1={nby} x2={nx} y2={ny}
-          stroke="#ff6644" strokeWidth="3" strokeLinecap="round"
-          opacity="0.2" className="gauge-needle-line" />
-        {/* Center cap rivet */}
-        <circle cx="0" cy="0" r="3" fill="url(#epwr-cap)" stroke="#1a1a1c" strokeWidth="0.3" />
-        <circle cx="0" cy="0" r="1.2" fill="#555" />
+        <GaugeNeedle angle={needleAngle} length={36} color="#ff3333"
+          glowColor="#ff6644" capId="epwr" />
 
         {/* Engine power % label */}
         <text x="0" y="-12" fill="#555" fontSize="4" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace' }}>
+          className="font-orbitron">
           LOAD %
         </text>
 
         {/* RPM numeric display */}
-        <text x="0" y="19" fill="#e0e0e0" fontSize="13" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
-          {Math.round(smoothRpm)}
-        </text>
-        <text x="0" y="27" fill="#555" fontSize="4" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace' }}>
-          RPM
-        </text>
+        <GaugeValueReadout
+          value={Math.round(smoothRpm)}
+          unit="RPM"
+          yValue={19}
+          yUnit={27}
+          valueFontSize={13}
+          unitFontSize={4}
+        />
       </svg>
     </div>
   );

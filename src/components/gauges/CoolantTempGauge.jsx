@@ -1,6 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
+import { colorByGreaterThan } from '../ui/thresholds.js';
 
 /**
  * Coolant temperature — vertical bar gauge styled like a thermometer.
@@ -15,16 +16,16 @@ export default function CoolantTempGauge() {
   const fillPct = ((clamped - min) / (max - min)) * 100;
 
   // Color based on temperature
-  let barColor = '#3b82f6'; // blue (cold)
-  let textColor = '#3b82f6';
-  if (temp > 95) { barColor = '#ef4444'; textColor = '#ef4444'; }
-  else if (temp > 70) { barColor = '#f59e0b'; textColor = '#f59e0b'; }
+  const barColor = colorByGreaterThan(temp, '#3b82f6', [
+    { gt: 70, color: '#f59e0b' },
+    { gt: 95, color: '#ef4444' },
+  ]);
+  const textColor = barColor;
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center gap-0.5 py-0.5">
       {/* Label */}
-      <span className="text-[5px] text-gray-500 tracking-wider"
-        style={{ fontFamily: 'Orbitron, monospace' }}>
+      <span className="text-[5px] text-gray-500 tracking-wider font-orbitron">
         MOTEUR
       </span>
 
@@ -63,7 +64,7 @@ export default function CoolantTempGauge() {
       </div>
 
       {/* Numeric value */}
-      <span className="text-[8px] font-bold" style={{ fontFamily: 'Orbitron, monospace', color: textColor }}>
+      <span className="text-[8px] font-bold font-orbitron" style={{ color: textColor }}>
         {Math.round(temp)}°
       </span>
     </div>

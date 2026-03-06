@@ -36,8 +36,7 @@ export default function ConsumptionSparkline() {
 
   return (
     <div className="w-full h-full panel-recess relative overflow-hidden">
-      <span className="absolute top-0.5 left-1 text-[7px] text-amber-600 z-10"
-        style={{ fontFamily: 'Orbitron, monospace' }}>
+      <span className="absolute top-0.5 left-1 text-[7px] text-amber-600 z-10 font-orbitron">
         L/100km
       </span>
       {data.length > 2 ? (

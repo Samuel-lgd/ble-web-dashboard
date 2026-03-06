@@ -2,6 +2,8 @@ import { Store } from './store.js';
 import { DashboardUI } from './ui.js';
 import { TripManager } from './src/trips/trip-manager.js';
 import { TRANSPORT_MODE } from './config.js';
+import { POLLING, ELM327 as ELM_CFG } from './config.js';
+import { selectPolledPids } from './pid-selection.js';
 
 /**
  * Application entry point (legacy non-React UI).
@@ -57,8 +59,12 @@ if (TRANSPORT_MODE === 'mock') {
     const atsh       = new ATSHManager(elm);
     const pidManager = new PIDManager(elm, atsh, store);
 
-    pidManager.addPIDs(STANDARD_PIDS);
-    pidManager.addPIDs(TOYOTA_PIDS);
+    const includeAll = POLLING.PROFILE === 'all';
+    const { selected, missingKeys } = selectPolledPids(STANDARD_PIDS, TOYOTA_PIDS, { includeAll });
+    pidManager.addPIDs(selected);
+    if (missingKeys.length) {
+      console.warn('[POLL] Missing PID definitions for keys:', missingKeys);
+    }
 
     elm.onLog((dir, text) => ui.addLog(dir, text));
 
@@ -79,6 +85,15 @@ if (TRANSPORT_MODE === 'mock') {
       if (elmState === 'initializing') {
         ui.setStatus('initializing');
       } else if (elmState === 'ready') {
+        // Post-init performance tuning (fire-and-forget)
+        (async () => {
+          try {
+            await elm.setPollingTimeout(ELM_CFG.POLL_TIMEOUT_TICKS);
+            await atsh.initFlowControl();
+          } catch (e) {
+            console.warn('[INIT] Post-init tuning partially failed:', e.message);
+          }
+        })();
         connected = true;
         ui.setStatus('ready');
         pidManager.start();

@@ -1,14 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 const DashboardCtx = createContext(null);
 
 /**
  * Provides store, tripManager, config, adapter, and elm to the component tree.
  */
-export function DashboardProvider({ store, tripManager, adapter, elm, children }) {
+export function DashboardProvider({ store, tripManager, adapter, elm, pidManager = null, children }) {
   const config = tripManager.getConfig();
   return (
-    <DashboardCtx.Provider value={{ store, tripManager, config, adapter, elm }}>
+    <DashboardCtx.Provider value={{ store, tripManager, config, adapter, elm, pidManager }}>
       {children}
     </DashboardCtx.Provider>
   );
@@ -20,21 +20,21 @@ export function useDashboard() {
 
 /**
  * Subscribe to a single PID value. Re-renders only when this PID updates.
+ * Store.onChange now returns an unsubscribe function — called in cleanup
+ * to prevent listener leaks across component lifecycles.
  */
 export function usePid(key) {
   const { store } = useContext(DashboardCtx);
   const [value, setValue] = useState(() => store.get(key)?.value ?? null);
-  const aliveRef = useRef(true);
 
   useEffect(() => {
-    aliveRef.current = true;
     const entry = store.get(key);
     if (entry && entry.value !== null) setValue(entry.value);
-    const handler = (k, entry) => {
-      if (k === key && aliveRef.current) setValue(entry.value);
-    };
-    store.onChange(handler);
-    return () => { aliveRef.current = false; };
+
+    const unsub = store.onChange((k, e) => {
+      if (k === key) setValue(e.value);
+    });
+    return unsub;
   }, [store, key]);
 
   return value;
@@ -42,26 +42,23 @@ export function usePid(key) {
 
 /**
  * Subscribe to the rolling history array for a PID.
- * Throttled to update at most every 500ms to avoid excessive re-renders.
+ * Throttled to update at most every 500 ms to avoid excessive re-renders.
  */
 export function usePidHistory(key) {
   const { store } = useContext(DashboardCtx);
   const [history, setHistory] = useState([]);
-  const aliveRef = useRef(true);
   const lastUpdateRef = useRef(0);
 
   useEffect(() => {
-    aliveRef.current = true;
-    const handler = (k) => {
-      if (k !== key || !aliveRef.current) return;
+    const unsub = store.onChange((k) => {
+      if (k !== key) return;
       const now = Date.now();
       if (now - lastUpdateRef.current < 500) return;
       lastUpdateRef.current = now;
       const entry = store.get(key);
       if (entry) setHistory([...entry.history]);
-    };
-    store.onChange(handler);
-    return () => { aliveRef.current = false; };
+    });
+    return unsub;
   }, [store, key]);
 
   return history;
@@ -112,26 +109,23 @@ export function useMultiPid(keys) {
   });
   const pendingRef = useRef(false);
   const latestRef = useRef(values);
-  const aliveRef = useRef(true);
   const keysSet = useRef(new Set(keys));
 
   useEffect(() => {
     keysSet.current = new Set(keys);
-    aliveRef.current = true;
 
-    const handler = (k, entry) => {
-      if (!keysSet.current.has(k) || !aliveRef.current) return;
+    const unsub = store.onChange((k, entry) => {
+      if (!keysSet.current.has(k)) return;
       latestRef.current = { ...latestRef.current, [k]: entry.value };
       if (!pendingRef.current) {
         pendingRef.current = true;
         requestAnimationFrame(() => {
-          if (aliveRef.current) setValues({ ...latestRef.current });
+          setValues({ ...latestRef.current });
           pendingRef.current = false;
         });
       }
-    };
-    store.onChange(handler);
-    return () => { aliveRef.current = false; };
+    });
+    return unsub;
   }, [store, keys.join(',')]);
 
   return values;

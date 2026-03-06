@@ -4,7 +4,13 @@ import { PID_KEYS } from '../pid-keys.js';
 import { pickThresholdBand } from './ui/thresholds.js';
 import { polarToXY, BezelDefs, GaugeBezel, GlowFilter } from './gauges/gauge-utils.jsx';
 
-// Engine thermal status badge: displays cold → warm-up → normal → hot → critical phases
+/**
+ * Engine thermal status — replaces FuelConsumptionGauge in left column.
+ * Shows the full thermal lifecycle of a Toyota hybrid engine:
+ *   Cold (<40°C) → Warm-up (40–70°C) → Normal (70–95°C) → Hot (95–105°C) → Critical (>105°C)
+ * Each phase has a distinct visual identity. At-a-glance clarity is key for
+ * hybrid driving: the engine shuts off once warm.
+ */
 
 const PHASES = [
   { label: 'COLD',     min: -Infinity, max: 40,  color: '#3b82f6', bg: 'rgba(59,130,246,0.12)',  icon: '❄',  desc: 'Warming up' },

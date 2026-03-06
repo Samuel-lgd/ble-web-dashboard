@@ -1,6 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
+import { pickThresholdBand } from '../ui/thresholds.js';
 
 /**
  * Fuel Level gauge — segmented vertical bar stack, styled like a car fuel indicator.
@@ -16,10 +17,7 @@ const ZONES = [
 ];
 
 function getZone(pct) {
-  for (const z of ZONES) {
-    if (pct < z.max) return z;
-  }
-  return ZONES[ZONES.length - 1];
+  return pickThresholdBand(pct, ZONES);
 }
 
 /** Return the zone color for a given cell index (0 = bottom). */
@@ -58,8 +56,7 @@ export default function FuelLevelGauge() {
 
   return (
     <div
-      className="w-full h-full flex flex-col items-center justify-center py-1 gap-[2px]"
-      style={{ fontFamily: 'Orbitron, monospace' }}
+      className="w-full h-full flex flex-col items-center justify-center py-1 gap-[2px] font-orbitron"
     >
       {isLow && (
         <style>{`

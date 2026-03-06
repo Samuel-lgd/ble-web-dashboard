@@ -49,10 +49,17 @@ export class Store {
     // Add to history
     entry.history.push({ value, timestamp: now });
 
-    // Trim history to the configured window
+    // Trim history to the configured window.
+    // Batch-trim via slice instead of while+shift to avoid O(n²) cost.
     const cutoff = now - (STORE.HISTORY_SECONDS * 1000);
-    while (entry.history.length > 0 && entry.history[0].timestamp < cutoff) {
-      entry.history.shift();
+    if (entry.history.length > 0 && entry.history[0].timestamp < cutoff) {
+      let lo = 0, hi = entry.history.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (entry.history[mid].timestamp < cutoff) lo = mid + 1;
+        else hi = mid;
+      }
+      if (lo > 0) entry.history = entry.history.slice(lo);
     }
 
     // Notify listeners
@@ -81,8 +88,13 @@ export class Store {
   /**
    * Subscribe to value updates.
    * @param {function(string, PIDEntry): void} callback - Called with (key, entry) on every update.
+   * @returns {function(): void} Unsubscribe function.
    */
   onChange(callback) {
     this._listeners.push(callback);
+    return () => {
+      const idx = this._listeners.indexOf(callback);
+      if (idx !== -1) this._listeners.splice(idx, 1);
+    };
   }
 }

@@ -41,8 +41,8 @@ function fmtDate(isoString) {
 function Metric({ value, label, color = '#f1f5f9', sub }) {
   return (
     <div className="flex flex-col items-center gap-0.5 min-w-0">
-      <span className="text-[15px] font-bold leading-none tabular-nums"
-        style={{ fontFamily: 'Orbitron, monospace', color }}>
+      <span className="text-[15px] font-bold leading-none tabular-nums font-orbitron"
+        style={{ color }}>
         {value}
       </span>
       {sub && (
@@ -139,8 +139,7 @@ export default function TripHistory({ onBack }) {
         style={{ borderBottom: '1px solid #1a1a24' }}>
         <div className="flex items-center gap-3">
           <button onClick={onBack}
-            className="cluster-back-btn flex-shrink-0"
-            style={{ fontFamily: 'Orbitron, monospace' }}>
+            className="cluster-back-btn flex-shrink-0 font-orbitron">
             ◀ DASH
           </button>
           <div>

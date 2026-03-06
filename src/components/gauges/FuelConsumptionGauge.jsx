@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, generateTicks, BezelDefs, useSmoothedValue } from './gauge-utils.jsx';
+import { valueToAngle, describeArc, generateTicks, BezelDefs, useSmoothedValue, GaugeValueReadout, GaugeBezel, GaugeNeedle, TickMarks } from './gauge-utils.jsx';
 
 /**
  * Fuel consumption gauge — circular, smaller, shows trip average L/100km.
@@ -25,8 +25,6 @@ export default function FuelConsumptionGauge() {
   const gaugeMin = 0;
   const gaugeMax = 15;
   const needleAngle = valueToAngle(Math.min(smoothL100km, gaugeMax), gaugeMin, gaugeMax);
-  const [nx, ny] = polarToXY(0, 0, 32, needleAngle);
-  const [nbx, nby] = polarToXY(0, 0, 3, needleAngle + 180);
 
   // A/C ghost zone: overlaid dimmed arc on fuel consumption
   const acStart = valueToAngle(Math.max(0, smoothL100km - smoothAcL100km), gaugeMin, gaugeMax);
@@ -42,9 +40,7 @@ export default function FuelConsumptionGauge() {
         </defs>
 
         {/* Chrome bezel */}
-        <circle cx="0" cy="0" r="42" fill="url(#fuel-bezel-ring)" stroke="#1a1a1c" strokeWidth="0.6" />
-        <circle cx="0" cy="0" r="39" fill="url(#fuel-face)" />
-        <circle cx="0" cy="0" r="39" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="1" />
+        <GaugeBezel id="fuel" outerR={42} innerR={39} outerStrokeWidth={0.6} shadowStrokeWidth={1} />
 
         {/* Background arc */}
         <path d={describeArc(0, 0, 35, -135, 135)}
@@ -64,47 +60,31 @@ export default function FuelConsumptionGauge() {
         )}
 
         {/* Tick marks */}
-        {ticks.map(({ v, ox, oy, ix, iy, isMajor }) => (
-          <g key={v}>
-            <line x1={ix} y1={iy} x2={ox} y2={oy}
-              stroke={isMajor ? '#666' : '#333'} strokeWidth={isMajor ? 0.8 : 0.4} />
-            {isMajor && (
-              <text
-                x={polarToXY(0, 0, 30, valueToAngle(v, gaugeMin, gaugeMax))[0]}
-                y={polarToXY(0, 0, 30, valueToAngle(v, gaugeMin, gaugeMax))[1]}
-                fill="#555" fontSize="4" textAnchor="middle" dominantBaseline="central"
-                style={{ fontFamily: 'Orbitron, monospace' }}>
-                {v}
-              </text>
-            )}
-          </g>
-        ))}
+        <TickMarks ticks={ticks} labelRadius={30} min={gaugeMin} max={gaugeMax}
+          majorStroke="#666" minorStroke="#333" majorWidth={0.8} minorWidth={0.4}
+          fill="#555" />
 
-        {/* Needle */}
-        <line x1={nbx} y1={nby} x2={nx} y2={ny}
-          stroke="#f59e0b" strokeWidth="1.2" strokeLinecap="round"
-          className="gauge-needle-line" />
-        <circle cx="0" cy="0" r="2.5" fill="url(#fuel-cap)" stroke="#1a1a1c" strokeWidth="0.3" />
-        <circle cx="0" cy="0" r="1" fill="#555" />
+        <GaugeNeedle angle={needleAngle} length={32} backLength={3}
+          color="#f59e0b" strokeWidth={1.2} capId="fuel" capR={2.5} dotR={1} />
 
         {/* Value display */}
-        <text x="0" y="14" fill="#e0e0e0" fontSize="7" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 600 }}>
-          {smoothL100km.toFixed(1)}
-        </text>
-        <text x="0" y="19" fill="#555" fontSize="3" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace' }}>
-          L/100km
-        </text>
+        <GaugeValueReadout
+          value={smoothL100km.toFixed(1)}
+          unit="L/100km"
+          yValue={14}
+          yUnit={19}
+          valueFontSize={7}
+          unitFontSize={3}
+          valueWeight={600}
+        />
 
-        {/* Snowflake A/C indicator */}
         <text x="0" y="-25" fill={acActive ? '#00cfff' : '#222'} fontSize="6" textAnchor="middle"
           opacity={acActive ? 0.8 : 0.2}>
           ❄
         </text>
         {acActive && (
           <text x="0" y="-18" fill="#00cfff" fontSize="3" textAnchor="middle" opacity="0.6"
-            style={{ fontFamily: 'Orbitron, monospace' }}>
+            className="font-orbitron">
             +{smoothAcL100km.toFixed(1)}
           </text>
         )}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, BezelDefs, useSmoothedValue } from './gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, BezelDefs, useSmoothedValue, GaugeValueReadout, GaugeBezel, GaugeNeedle } from './gauge-utils.jsx';
 
 /**
  * Battery current gauge — small circular, bidirectional.
@@ -17,8 +17,6 @@ export default function BatteryCurrentGauge() {
   const clamped = Math.max(gaugeMin, Math.min(gaugeMax, smoothCurrent));
   const needleAngle = valueToAngle(clamped, gaugeMin, gaugeMax);
   const centerAngle = valueToAngle(0, gaugeMin, gaugeMax);
-  const [nx, ny] = polarToXY(0, 0, 32, needleAngle);
-  const [nbx, nby] = polarToXY(0, 0, 3, needleAngle + 180);
 
   const isCharging = smoothCurrent < -0.5;
   const isDischarging = smoothCurrent > 0.5;
@@ -31,9 +29,7 @@ export default function BatteryCurrentGauge() {
         </defs>
 
         {/* Chrome bezel */}
-        <circle cx="0" cy="0" r="42" fill="url(#curr-bezel-ring)" stroke="#1a1a1c" strokeWidth="0.6" />
-        <circle cx="0" cy="0" r="39" fill="url(#curr-face)" />
-        <circle cx="0" cy="0" r="39" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="1" />
+        <GaugeBezel id="curr" outerR={42} innerR={39} outerStrokeWidth={0.6} shadowStrokeWidth={1} />
 
         {/* Left arc track (charging/green) */}
         <path d={describeArc(0, 0, 35, -135, centerAngle)}
@@ -65,38 +61,36 @@ export default function BatteryCurrentGauge() {
                 x={polarToXY(0, 0, 28, angle)[0]}
                 y={polarToXY(0, 0, 28, angle)[1]}
                 fill="#555" fontSize="3.5" textAnchor="middle" dominantBaseline="central"
-                style={{ fontFamily: 'Orbitron, monospace' }}>
+                className="font-orbitron">
                 {Math.abs(v)}
               </text>
             </g>
           );
         })}
 
-        {/* Center mark */}
         <text x={polarToXY(0, 0, 23, centerAngle)[0]} y={polarToXY(0, 0, 23, centerAngle)[1]}
           fill="#666" fontSize="3" textAnchor="middle" dominantBaseline="central"
-          style={{ fontFamily: 'Orbitron, monospace' }}>0</text>
+          className="font-orbitron">0</text>
 
-        {/* Needle */}
-        <line x1={nbx} y1={nby} x2={nx} y2={ny}
-          stroke={isCharging ? '#22c55e' : '#00cfff'}
-          strokeWidth="1.2" strokeLinecap="round" className="gauge-needle-line" />
-        <circle cx="0" cy="0" r="2.5" fill="url(#curr-cap)" stroke="#1a1a1c" strokeWidth="0.3" />
-        <circle cx="0" cy="0" r="1" fill="#555" />
+        <GaugeNeedle angle={needleAngle} length={32} backLength={3}
+          color={isCharging ? '#22c55e' : '#00cfff'}
+          strokeWidth={1.2} capId="curr" capR={2.5} dotR={1} />
 
         {/* Value */}
-        <text x="0" y="14" fill="#e0e0e0" fontSize="6" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 600 }}>
-          {smoothCurrent.toFixed(1)}
-        </text>
-        <text x="0" y="19" fill="#555" fontSize="3" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace' }}>A</text>
+        <GaugeValueReadout
+          value={smoothCurrent.toFixed(1)}
+          unit="A"
+          yValue={14}
+          yUnit={19}
+          valueFontSize={6}
+          unitFontSize={3}
+          valueWeight={600}
+        />
 
-        {/* CHG / DIS labels */}
         <text x="-26" y="30" fill="#22c55e" fontSize="3" textAnchor="middle" opacity="0.5"
-          style={{ fontFamily: 'Orbitron, monospace' }}>CHG</text>
+          className="font-orbitron">CHG</text>
         <text x="26" y="30" fill="#00cfff" fontSize="3" textAnchor="middle" opacity="0.5"
-          style={{ fontFamily: 'Orbitron, monospace' }}>DIS</text>
+          className="font-orbitron">DIS</text>
       </svg>
     </div>
   );

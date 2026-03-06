@@ -190,6 +190,21 @@ export class ELM327 {
   }
 
   /**
+   * Set the ELM327 response timeout (ATST) for the polling phase.
+   * Lower values detect NO DATA faster on CAN bus where responses arrive in <50 ms.
+   * Call AFTER initialize() — init needs the default (longer) timeout.
+   *
+   * @param {string} hexTicks — hex ATST value (each tick = 4.096 ms).
+   *   '19' = 25 ticks = 102 ms, '0A' = 10 ticks = 41 ms.
+   *
+   * Source: ELM327 datasheet v2.3, §"Setting Timeouts"
+   * Source: https://www.scantool.net/blog/tips-to-improve-elm327-performance/
+   */
+  async setPollingTimeout(hexTicks) {
+    await this.send(`ATST ${hexTicks}`);
+  }
+
+  /**
    * Register a callback for state changes.
    * @param {function(ELM327State): void} callback
    */

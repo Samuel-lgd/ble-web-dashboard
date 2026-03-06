@@ -39,8 +39,7 @@ export default function EnergyFlowBar() {
             }}
           />
         </div>
-        <span className="text-[8px] text-amber-400 min-w-[42px] text-right"
-          style={{ fontFamily: 'Orbitron, monospace' }}>
+        <span className="text-[8px] text-amber-400 min-w-[42px] text-right font-orbitron">
           {l100km.toFixed(1)} <span className="text-amber-600 text-[6px]">L/100</span>
         </span>
       </div>
@@ -54,8 +53,7 @@ export default function EnergyFlowBar() {
 
       {/* Electric half */}
       <div className="flex-1 flex items-center gap-1 h-full">
-        <span className="text-[8px] text-cyan-400 min-w-[36px] text-left"
-          style={{ fontFamily: 'Orbitron, monospace' }}>
+        <span className="text-[8px] text-cyan-400 min-w-[36px] text-left font-orbitron">
           {kwDraw.toFixed(1)} <span className="text-cyan-600 text-[6px]">kW</span>
         </span>
         <div className="flex-1 h-[6px] bg-[#0a1520] rounded-r overflow-hidden relative">

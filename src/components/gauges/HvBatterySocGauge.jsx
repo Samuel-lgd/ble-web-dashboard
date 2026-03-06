@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, BezelDefs, useSmoothedValue } from './gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, BezelDefs, useSmoothedValue, GaugeValueReadout, GaugeBezel, GaugeNeedle, GlowFilter } from './gauge-utils.jsx';
 
 /**
  * HV Battery SOC gauge — large circular with chrome bezel.
@@ -30,8 +30,7 @@ export default function HvBatterySocGauge() {
   // Regen arc spans top semicircle (-90° → +90°): 0 kW parks at 9 o'clock, 20 kW at 3 o'clock
   const kwClamped = isCharging ? Math.min(kwAbs, 20) : 0;
   const kwAngle   = valueToAngle(kwClamped, 0, 20, -90, 90);
-  const [nx, ny]   = polarToXY(0, 0, 30, kwAngle);
-  const [nbx, nby] = polarToXY(0, 0, 4, kwAngle + 180);
+
 
   const REGEN_R = 32;
   const regenTicks = [0, 5, 10, 15, 20].map(v => {
@@ -51,30 +50,20 @@ export default function HvBatterySocGauge() {
             <stop offset="0%"   stopColor="#00ee66" />
             <stop offset="100%" stopColor="#77ffcc" />
           </linearGradient>
-          <filter id="regen-glow" filterUnits="userSpaceOnUse" x="-60" y="-60" width="120" height="120">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
+          <GlowFilter id="regen-glow" stdDeviation={1.5}
+            filterUnits="userSpaceOnUse" x="-60" y="-60" width="120" height="120" />
           <linearGradient id="soc-arc-electric" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#0066ff" />
             <stop offset="40%" stopColor="#00aaff" />
             <stop offset="100%" stopColor="#00eeff" />
           </linearGradient>
-          <filter id="soc-arc-glow" filterUnits="userSpaceOnUse" x="-60" y="-60" width="120" height="120">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="1.2" result="blur" />
-            <feColorMatrix in="blur" type="matrix"
-              values="0 0 0 0 0  0 0 0 0 0.667  0 0 0 0 1  0 0 0 0.5 0" result="blue" />
-            <feMerge><feMergeNode in="blue" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
+          <GlowFilter id="soc-arc-glow" stdDeviation={1.2}
+            colorMatrix="0 0 0 0 0  0 0 0 0 0.667  0 0 0 0 1  0 0 0 0.5 0"
+            filterUnits="userSpaceOnUse" x="-60" y="-60" width="120" height="120" />
         </defs>
 
         {/* Chrome bezel */}
-        <circle cx="0" cy="0" r="48" fill="url(#soc-bezel-ring)" stroke="#1a1a1c" strokeWidth="0.8" />
-        <circle cx="0" cy="0" r="45" fill="url(#soc-face)" />
-        <circle cx="0" cy="0" r="45" fill="none" stroke="rgba(0,0,0,0.3)" strokeWidth="1.5" />
+        <GaugeBezel id="soc" outerR={48} innerR={45} />
 
         {/* Regen arc background track (placeholder) */}
         <path d={describeArc(0, 0, REGEN_R, -90, 90)}
@@ -108,7 +97,7 @@ export default function HvBatterySocGauge() {
         <text x="0" y="-22"
           fill={isCharging ? '#00cc55' : '#152515'}
           fontSize="2.6" textAnchor="middle" dominantBaseline="central"
-          style={{ fontFamily: 'Orbitron, monospace', letterSpacing: '1.2px' }}>
+          className="font-orbitron" style={{ letterSpacing: '1.2px' }}>
           REGEN
         </text>
 
@@ -116,47 +105,39 @@ export default function HvBatterySocGauge() {
         <text x="0" y="-16"
           fill={isCharging ? '#00ff88' : '#0f200f'}
           fontSize="5.5" textAnchor="middle" dominantBaseline="central"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
+          className="font-orbitron" style={{ fontWeight: 700 }}>
           {isCharging ? kwAbs.toFixed(1) : '0'}
         </text>
         <text x="0" y="-11"
           fill={isCharging ? '#009944' : '#0f200f'}
           fontSize="2.8" textAnchor="middle" dominantBaseline="central"
-          style={{ fontFamily: 'Orbitron, monospace' }}>
+          className="font-orbitron">
           kW
         </text>
 
-        {/* Battery temp */}
+        <GaugeNeedle angle={kwAngle} length={30}
+          color={isCharging ? '#00ff88' : '#1a3a1a'}
+          glowColor={isCharging ? '#00ff88' : '#0a1a0a'}
+          glowWidth={4} glowOpacity={isCharging ? 0.22 : 0.08}
+          capId="soc" />
+
+        {/* SOC value — large for glanceability */}
+        <GaugeValueReadout
+          value={smoothSoc.toFixed(1)}
+          unit="SOC %"
+          yValue={21}
+          yUnit={29}
+          valueFontSize={15}
+          unitFontSize={4}
+        />
+
+         {/* Battery temp */}
         <text x="0" y="37" fill={battTempColor} fontSize="5" textAnchor="middle"
           dominantBaseline="central"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
+          className="font-orbitron" style={{ fontWeight: 700 }}>
           {Math.round(battTemp)}°C
         </text>
 
-
-        {/* Needle — tracks regen kW */}
-        <line x1={nbx} y1={nby} x2={nx} y2={ny}
-          stroke={isCharging ? '#00ff88' : '#1a3a1a'}
-          strokeWidth="1.5" strokeLinecap="round"
-          className="gauge-needle-line" />
-        <line x1={nbx} y1={nby} x2={nx} y2={ny}
-          stroke={isCharging ? '#00ff88' : '#0a1a0a'}
-          strokeWidth="4" strokeLinecap="round"
-          opacity={isCharging ? 0.22 : 0.08}
-          className="gauge-needle-line" />
-        {/* Center cap */}
-        <circle cx="0" cy="0" r="3" fill="url(#soc-cap)" stroke="#1a1a1c" strokeWidth="0.3" />
-        <circle cx="0" cy="0" r="1.2" fill="#555" />
-
-        {/* SOC value — large for glanceability */}
-        <text x="0" y="21" fill="#e0e0e0" fontSize="15" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace', fontWeight: 700 }}>
-          {smoothSoc.toFixed(1)}
-        </text>
-        <text x="0" y="29" fill="#555" fontSize="4" textAnchor="middle"
-          style={{ fontFamily: 'Orbitron, monospace' }}>
-          SOC %
-        </text>
       </svg>
     </div>
   );

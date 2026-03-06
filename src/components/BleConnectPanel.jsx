@@ -10,8 +10,6 @@ const LOG_COLORS = {
   rx:   '#6b7280',
 };
 
-const font = { fontFamily: 'Orbitron, monospace' };
-
 /**
  * Display debug configuration info when ELM327 is ready
  */
@@ -151,10 +149,10 @@ export default function BleConnectPanel() {
     >
       {/* Header */}
       <div className="flex items-center justify-between px-2 pt-1 flex-shrink-0">
-        <span className="text-[6px] text-amber-700 tracking-wider" style={font}>
+        <span className="text-[6px] text-amber-700 tracking-wider font-orbitron">
           BLE CONNECTION
         </span>
-        <span style={{ ...font, fontSize: '7px', color: statusColor }}>
+        <span className="font-orbitron" style={{ fontSize: '7px', color: statusColor }}>
           {statusLabel}
         </span>
       </div>
@@ -192,8 +190,8 @@ export default function BleConnectPanel() {
         {!isConnecting && bleState === 'disconnected' && (
           <button
             onClick={handleConnect}
-            className="cluster-nav-btn cluster-nav-btn--cyan"
-            style={{ ...font, flex: 1 }}
+            className="cluster-nav-btn cluster-nav-btn--cyan font-orbitron"
+            style={{ flex: 1 }}
           >
             CONNECT
           </button>
@@ -201,8 +199,8 @@ export default function BleConnectPanel() {
         {isConnecting && (
           <button
             disabled
-            className="cluster-nav-btn cluster-nav-btn--amber"
-            style={{ ...font, flex: 1, opacity: 0.6, cursor: 'default' }}
+            className="cluster-nav-btn cluster-nav-btn--amber font-orbitron"
+            style={{ flex: 1, opacity: 0.6, cursor: 'default' }}
           >
             CONNECTING…
           </button>
@@ -211,15 +209,14 @@ export default function BleConnectPanel() {
           <>
             <button
               onClick={handleConnect}
-              className="cluster-nav-btn cluster-nav-btn--cyan"
-              style={font}
+              className="cluster-nav-btn cluster-nav-btn--cyan font-orbitron"
             >
               RECONNECT
             </button>
             <button
               onClick={handleDisconnect}
-              className="cluster-nav-btn"
-              style={{ ...font, color: '#ef4444', borderColor: '#7f1d1d', backgroundColor: 'rgba(239,68,68,0.08)' }}
+              className="cluster-nav-btn font-orbitron"
+              style={{ color: '#ef4444', borderColor: '#7f1d1d', backgroundColor: 'rgba(239,68,68,0.08)' }}
             >
               DISCONNECT
             </button>

@@ -15,22 +15,9 @@ import { POLLING } from './config.js';
  * @property {boolean} [calibrationNeeded] - true if formula is uncertain and needs real vehicle testing.
  */
 
-/**
- * Parse helper: extract data bytes from a standard OBD2 response (mode 01/02).
- *
- * With ATH1 enabled (headers ON), a standard single-frame response looks like:
- *   "7E8 04 41 0C 1A F8"
- *    ─── ── ── ── ─────
- *    hdr PCI mode PID data_bytes
- *
- * The 3-char header "7E8" is auto-filtered by the 2-char regex.
- * Remaining tokens: [PCI, mode_echo, PID_echo, data_A, data_B, ...]
- * We skip 3 (PCI + mode echo + PID echo) to reach the data bytes.
- *
- * @param {string} raw - Cleaned response string.
- * @param {number} expectedBytes - Number of data bytes expected.
- * @returns {number[] | null} Array of byte values, or null on parse failure.
- */
+// Extract data bytes from standard OBD2 response (mode 01/02)
+// With ATH1: 3-char header + PCI + mode echo + PID echo + data_bytes
+// We skip first 3 tokens ([PCI, 41, XX]) to reach data
 export function parseBytes(raw, expectedBytes) {
   const parts = raw.split(' ').filter((s) => /^[0-9A-Fa-f]{2}$/.test(s));
   // With ATH1: [PCI, 41, XX, data...] → skip 3 to reach data
@@ -48,7 +35,7 @@ export const STANDARD_PIDS = [
     pid: '010C',
     name: 'Engine RPM',
     unit: 'rpm',
-    interval: POLLING.FAST,
+    interval: POLLING.NORMAL,
     protocol: 'standard',
     parse(raw) {
       const b = parseBytes(raw, 2);
@@ -60,7 +47,7 @@ export const STANDARD_PIDS = [
     pid: '0104',
     name: 'Engine Load',
     unit: '%',
-    interval: POLLING.FAST,
+    interval: POLLING.NORMAL,
     protocol: 'standard',
     parse(raw) {
       const b = parseBytes(raw, 1);
@@ -84,7 +71,7 @@ export const STANDARD_PIDS = [
     pid: '0105',
     name: 'Coolant Temp',
     unit: '\u00B0C',
-    interval: POLLING.NORMAL,
+    interval: POLLING.SLOW,
     protocol: 'standard',
     parse(raw) {
       const b = parseBytes(raw, 1);
@@ -146,6 +133,15 @@ export const STANDARD_PIDS = [
     },
   },
   */
+  /*
+  // ❌ DISABLED — Not supported on Toyota NHP130 / THS-II hybrids
+  //
+  // Mode 01 PID 0x5E is absent from the Toyota Auris Hybrid PIDS_C bitmap
+  // (response 41 40 44 CC 00 21 — bit for 0x5E = 0).
+  // The Atkinson-cycle engine under HV-ECU load management does not compute
+  // instantaneous fuel flow in a form OBD Mode 01 can serve. Use Toyota
+  // proprietary PID 0x213C on 7E0 (injector volume) for fuel data instead.
+  // Source: Ircama/ELM327-emulator elm/obd_message.py Toyota Auris capture.
   {
     pid: '015E',
     name: 'Fuel Rate',
@@ -158,6 +154,7 @@ export const STANDARD_PIDS = [
       return ((b[0] * 256) + b[1]) / 20;
     },
   },
+  */
   /*
   // ❌ UNUSED — Commented out to reduce polling overhead
   {
@@ -215,6 +212,14 @@ export const STANDARD_PIDS = [
     },
   },
   */
+  /*
+  // ❌ DISABLED — Not supported on Toyota NHP130 / THS-II hybrids
+  //
+  // Mode 01 PID 0x2F is absent from the Toyota engine ECU (7E0) PIDS_B bitmap
+  // (response 41 20 90 15 B0 15 — bit for 0x2F = 0).
+  // Toyota compact hybrids manage fuel level via the body/ICE ECU at 7C0
+  // using proprietary service 21, PID 0x29 (ATSH 7C0 → command 2129).
+  // Source: Ircama/ELM327-emulator elm/obd_message.py Toyota Auris capture.
   {
     pid: '012F',
     name: 'Fuel Tank Level',
@@ -230,4 +235,5 @@ export const STANDARD_PIDS = [
       return (b[0] * 100) / 255;
     },
   },
+  */
 ];

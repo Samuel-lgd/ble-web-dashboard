@@ -33,6 +33,25 @@ export class ATSHManager {
     this._elm = elm;
     /** @type {string | null} Currently active ATSH header, null = default (standard OBD) */
     this._currentHeader = null;
+    /** Whether one-time FC data/mode has been sent */
+    this._fcInitialized = false;
+  }
+
+  /**
+   * One-time Flow Control setup. ATFCSD and ATFCSM are persistent across
+   * ATSH changes — they only need to be sent once after ELM init.
+   * Only ATFCSH (FC header) changes per ECU and is sent in switchTo().
+   *
+   * Source: ELM327 datasheet — ATFCSD/ATFCSM persist until explicitly changed.
+   * This saves 2 commands (~60 ms) per header switch.
+   */
+  async initFlowControl() {
+    // FC data: 30 = ContinueToSend (fc_flag=0), 00 = BlockSize unlimited,
+    //          00 = SeparationTime minimum (no delay between CFs)
+    await this._elm.send('ATFCSD 30 00 00');
+    // FC mode 1 = use user-defined header (ATFCSH) and data (ATFCSD)
+    await this._elm.send('ATFCSM 1');
+    this._fcInitialized = true;
   }
 
   /**
@@ -51,19 +70,28 @@ export class ATSHManager {
     // Set the transmit header (CAN arbitration ID for requests)
     await this._elm.send(`ATSH ${txHeader}`);
 
-    // Flow Control setup for multi-frame ISO-TP responses:
+    // Source: https://github.com/AutotronicCommunity/AT-COMMAND-ELM327
+    // `ATCRA hhh` applies CAN RX address filtering. Restricting to the active
+    // ECU response header reduces unrelated frame parsing when multiple ECUs chat.
+    if (rxHeader) {
+      try {
+        await this._elm.send(`ATCRA ${rxHeader}`);
+      } catch (_) {
+        // Some clone firmware lacks ATCRA; continue without filtering.
+      }
+    }
+
+    // Flow Control header for multi-frame ISO-TP responses.
     // ATFCSH uses the tester TX header (same as ATSH), not ECU rxHeader.
-    // Reason: in ISO-TP, FC is sent by the RECEIVER (tester) back to the
-    // SENDER (ECU). Example flow 5F0->6F0 then FC 5F0 is documented here:
-    // https://mechanics.stackexchange.com/questions/91169/flow-control-for-multiline-responses-for-custom-15765-4-can-messages-over-elm327
-    // ISO-TP FC direction reference:
-    // https://docs.kernel.org/networking/iso15765-2.html
+    // Source: https://mechanics.stackexchange.com/questions/91169/
+    // ATFCSD + ATFCSM are persistent and set once in initFlowControl().
     await this._elm.send(`ATFCSH ${txHeader}`);
-    // FC data: 30 = ContinueToSend (fc_flag=0), 00 = BlockSize unlimited,
-    //          00 = SeparationTime minimum (no delay between CFs)
-    await this._elm.send('ATFCSD 30 00 00');
-    // FC mode 1 = use user-defined header (ATFCSH) and data (ATFCSD)
-    await this._elm.send('ATFCSM 1');
+
+    // Fallback: if initFlowControl() wasn't called, send FC data/mode inline
+    if (!this._fcInitialized) {
+      await this._elm.send('ATFCSD 30 00 00');
+      await this._elm.send('ATFCSM 1');
+    }
 
     this._currentHeader = txHeader;
   }
@@ -81,6 +109,13 @@ export class ATSHManager {
     // Restore functional broadcast addressing only.
     // Keeping ATH/ATAL/protocol/timing untouched prevents silent de-initialization.
     await this._elm.send('ATSH 7DF');
+    // Source: https://github.com/AutotronicCommunity/AT-COMMAND-ELM327
+    // `ATCRA` (without argument) clears custom CAN RX filters.
+    try {
+      await this._elm.send('ATCRA');
+    } catch (_) {
+      // Ignore if unsupported.
+    }
 
     this._currentHeader = null;
   }

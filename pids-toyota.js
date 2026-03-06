@@ -16,7 +16,9 @@ import {
  * ├──────────┬──────────┬────────────────────────────────────────────────┤
  * │ 7E0→7E8  │ Engine   │ ICE management, coolant, fuel injection       │
  * │ 7E2→7EA  │ HV ECU   │ Hybrid transaxle, MG1/MG2, battery monitor   │
- * │ 7E4→7EC  │ Battery  │ HV battery pack management (SOC, temps)       │
+ * │ 7E3→7EB  │ Battery  │ HV battery pack BMS (SOC, temps) [THS-II]    │
+ * │           │          │ ⚠ 7E4 is NOT a Toyota diagnostic node        │
+ * │ 7C0→7C8  │ ICE ECU  │ Fuel level PID 2129; A/C at adjacent 7C4     │
  * │ 7B0→7B8  │ Skid Ctl │ ABS/VSC/TRC, wheel speeds, brake pressure    │
  * └──────────┴──────────┴────────────────────────────────────────────────┘
  *
@@ -42,38 +44,7 @@ import {
 
 // ─── Parse helpers ───────────────────────────────────────────────────────────
 
-/**
- * Extract the application-layer payload from a CAN response.
- * Handles both single-frame and multi-frame ISO 15765-2 (ISO-TP) responses
- * with ATH1 enabled (CAN headers visible in response).
- *
- * ┌─────────────────────────────────────────────────────────────────────────┐
- * │ Response format with ATH1 (headers ON):                                │
- * │                                                                        │
- * │ Single frame:                                                          │
- * │   "7EA 05 61 01 AA BB CC DD EE"                                        │
- * │    ─── ── ─────────────────────                                        │
- * │    hdr PCI(SF, len=5) data                                             │
- * │                                                                        │
- * │ Multi-frame:                                                           │
- * │   "7EA 10 13 61 01 AA BB CC DD"   ← First Frame (FF): PCI=10 len=0x013│
- * │   "7EA 21 EE FF GG HH II JJ KK"  ← Consecutive Frame (CF): seq=1     │
- * │   "7EA 22 LL MM NN OO PP QQ RR"  ← Consecutive Frame (CF): seq=2     │
- * │                                                                        │
- * │ PCI byte types (high nibble):                                          │
- * │   0x0n = Single Frame (n = data length)                                │
- * │   0x1n = First Frame (next byte = remaining length)                    │
- * │   0x2n = Consecutive Frame (n = sequence counter 0-F)                  │
- * │   0x3n = Flow Control (not in responses to tester)                     │
- * │                                                                        │
- * │ 3-char hex tokens (e.g. "7EA") are CAN headers — stripped by the       │
- * │ 2-char hex filter. If headers are off (ATH0), line boundaries          │
- * │ separate frames instead.                                               │
- * └─────────────────────────────────────────────────────────────────────────┘
- *
- * @param {string} raw - Cleaned ELM327 response (from _parseResponse).
- * @returns {number[] | null} Reassembled payload bytes (e.g. [0x61, 0x01, 0xAA, ...]).
- */
+// Extract payload from CAN response (single/multi-frame ISO-TP with ATH1 headers)
 function extractCanPayload(raw) {
   // Split into lines (ELM327 separates frames with \r; _parseResponse may
   // have collapsed them to spaces, but we try lines first for multi-frame).
@@ -125,18 +96,7 @@ function extractCanPayload(raw) {
   return payload.length > 0 ? payload : null;
 }
 
-/**
- * Parse helper for Toyota proprietary responses.
- * Extracts the reassembled ISO-TP payload, then skips the mode/PID echo bytes.
- *
- * With ATH1 + CAN auto-formatting, a mode 21 response to PID 2101 produces:
- *   Payload after extractCanPayload: [0x61, 0x01, 0xAA, 0xBB, 0xCC, ...]
- *   After skipping echoBytes=2:      [0xAA, 0xBB, 0xCC, ...]
- *
- * @param {string} raw - Cleaned response.
- * @param {number} echoBytes - Number of echo bytes to skip (2 for mode 21, 3 for mode 22).
- * @returns {number[] | null} Data bytes as integers.
- */
+// Parse Toyota response: extract ISO-TP payload, skip mode/PID echo bytes
 function parseToyotaBytes(raw, echoBytes) {
   const payload = extractCanPayload(raw);
   if (!payload || payload.length <= echoBytes) return null;
@@ -155,11 +115,7 @@ function signed16(hi, lo) {
   return val;
 }
 
-// ─── Missing PIDs (dashboard requires, not yet discovered) ──────────────────
-// TO IMPLEMENT: A/C Compressor Power (W) — ECU 7E0, PID unknown
-//   Needed by: FuelConsumptionGauge A/C overlay. Currently simulated by MockEngine.
-//   Candidate: Mode 21 PID on HVAC ECU (7E0 or dedicated A/C ECU).
-//   Workaround: derive from 12V current spike when A/C clutch engages.
+// TODO: A/C Compressor Power (W) — not yet discovered; currently simulated
 
 // ─── Toyota Proprietary PIDs ─────────────────────────────────────────────────
 
@@ -170,27 +126,48 @@ export const TOYOTA_PIDS = [
   // 🔋 HYBRID BATTERY & SYSTEM
   // ══════════════════════════════════════════════════════════════════════════
 
+  /*
+  // ❌ DISABLED — 7E4 is not a valid diagnostic node on Toyota THS-II / NHP130.
+  //
+  // ROOT CAUSE: The Toyota Battery ECU (BMS) is at address 7E3 → 7EB on all documented
+  // Toyota THS-II platforms, not 7E4. No Toyota hybrid uses 7E4 for BMS.
+  // Sources:
+  //   - Ircama/ELM327-emulator: ECU_ADDR_B = "7E3" (Toyota Auris Hybrid, elm/obd_message.py)
+  //   - eaa-phev.org Prius Gen2 real CAN captures: battery requests 07E3h → responses 07EBh
+  //
+  // NHP130 additional note: The second-generation Aqua uses a bipolar NiMH pack whose
+  // cell-balancing is inherently passive. Toyota may have integrated the BMS logic into
+  // the HV-ECU (7E2) rather than a dedicated 7E3 node. To test:
+  //   1. ATSH 7E3 → send "2100" → check if 7EB responds with a PID support bitmap.
+  //   2. If it does, uncomment and use the 7E3 PID block below.
+  //   3. If it returns NO DATA, the BMS is integrated into 7E2 and no separate SOC
+  //      PID is needed — standard PID 015B (Hybrid Battery SOC) is answered by the
+  //      HV-ECU at 7E2 via functional broadcast and provides an adequate reading.
+  //
+  // See also: standard PID 015B (currently active) which provides hybrid SOC at 0.4%
+  // resolution without requiring a header switch. Formula: A * 100 / 255.
   {
     pid: '2101',
     name: 'HV Battery SOC (HR)',
     unit: '%',
-    interval: POLLING.NORMAL,
+    interval: POLLING.FAST,
     protocol: 'toyota',
-    header: '7E4',
-    source: 'OBD Fusion Toyota Enhanced PID pack; PriusChat community reports',
+    header: '7E3',
+    source: 'Community hypothesis — PID 2101 byte 6 on 7E3; eaa-phev.org Prius Gen2 data shows Battery ECU at 7E3.',
     verified: false,
     calibrationNeeded: true,
     notes:
-      'High-resolution battery SOC from the Battery Management ECU (7E4). ' +
-      'Byte 6 of the 2101 response, divided by 2, giving 0.5% resolution. ' +
-      'Alternative: standard PID 015B (A*20/51) on any ECU gives ~0.4% resolution. ' +
-      'Byte position may vary by model year — capture raw response to confirm.',
+      'High-res SOC from Battery ECU (7E3 → 7EB). Byte 6 / 2 = 0.5% resolution. ' +
+      'Byte offset is unconfirmed for NHP130 — capture full 2101 response from 7EB ' +
+      'and compare against standard PID 015B reading to identify the SOC byte. ' +
+      'Moved from 7E4 (wrong address — no Toyota hybrid uses 7E4 for BMS).',
     parse(raw) {
       const b = parseToyotaBytes(raw, 2);
       if (!b || b.length < 7) return null;
       return b[6] / 2;
     },
   },
+  */
   {
     pid: '2198',
     name: 'HV Battery Current',
@@ -201,54 +178,58 @@ export const TOYOTA_PIDS = [
     source: 'https://github.com/Ircama/ELM327-emulator — CUSTOM_BTY_CURR (PID 2198 on 7EA)',
     verified: false,
     notes:
-      'Battery pack current from HV ECU. Formula: (A*256+B)/100 - 327.68. ' +
-      'Positive = charging (regen), negative = discharging (driving). ' +
-      'Range: -327.68 to +327.67 A. Multi-frame response. ' +
-      'Also available as PID 218A (CUSTOM_IB) with identical formula. ' +
-      'Confirmed header is 7E2 (HV ECU), NOT 7E4 (Battery ECU). ' +
-      'If no response on 7E2, try header 7E4 with PID 2101 bytes 2-3.',
+      'Battery pack current from HV ECU. (A*256+B)/100 - 327.68. ' +
+      'Positive = charging, negative = discharging. ±327.68 A range.',
     parse(raw) {
       const b = parseToyotaBytes(raw, 2);
       if (!b || b.length < 2) return null;
       return ((b[0] * 256) + b[1]) / 100 - 327.68;
     },
   },
+  /*
+  // ❌ DISABLED — 7E4 is not a valid diagnostic node on Toyota THS-II / NHP130.
+  // See HV Battery SOC (HR) comment block above for full root-cause analysis and
+  // probe instructions. Uncomment when 7E3 / 7EB is confirmed to respond.
+  //
+  // If 7E3 does not respond on NHP130, battery pack voltage can be inferred as:
+  //   power_W  = HV Battery Current (PID 2198 on 7E2) × nominal_pack_voltage
+  // Toyota NHP10/NHP130 NiMH pack nominal: ~201.6 V (168 cells × 1.2 V)
+  // No reliable single-shot voltage PID has been found for 7E2 on compact Toyota hybrids.
+  // Absence from all documented THS-II OBD2 captures (Auris emulator, Prius eaa-phev data)
+  // excludes PIDs 21B3 and 21B6 as likely candidates despite community rumour.
   {
     pid: '2101',
     name: 'HV Battery Voltage',
     unit: 'V',
-    interval: POLLING.NORMAL,
+    interval: POLLING.FAST,
     protocol: 'toyota',
-    header: '7E4',
-    source: 'OBD Fusion Toyota Enhanced PID pack; PriusChat community reports',
+    header: '7E3',
+    source: 'Community hypothesis — PID 2101 bytes 0-1 on 7E3; eaa-phev.org Prius Gen2 data shows Battery ECU at 7E3.',
     verified: false,
     calibrationNeeded: true,
     notes:
-      'Total HV battery pack voltage from Battery ECU (7E4). ' +
-      'Bytes 0-1 of 2101 response, divided by 2. Range: 0-327.67 V. ' +
-      'Alternative on 7E2: PID 2181 gives individual block voltage with ' +
-      'formula (A*256+B)*79.99/65535 — but that is per-block, not total pack. ' +
-      'Capture raw response and compare with known pack voltage (~200V nominal) to verify.',
+      'Total HV pack voltage from Battery ECU (7E3 → 7EB). Bytes 0-1 / 2 = 0-327.67 V. ' +
+      'Byte offset is unconfirmed for NHP130 — capture raw 2101 response from 7EB. ' +
+      'Toyota NHP10/NHP130 NiMH pack: ~201.6 V nominal (168 cells × 1.2 V). ' +
+      'Moved from 7E4 (wrong address — no Toyota hybrid uses 7E4 for BMS).',
     parse(raw) {
       const b = parseToyotaBytes(raw, 2);
       if (!b || b.length < 2) return null;
       return ((b[0] * 256) + b[1]) / 2;
     },
   },
+  */
   {
     pid: '2187',
     name: 'HV Batt Temp 1 (Intake)',
     unit: '\u00B0C',
-    interval: POLLING.SLOW,
+    interval: POLLING.SLOW,  // SLOW = 5 s for temperatures
     protocol: 'toyota',
     header: '7E2',
     source: 'https://github.com/Ircama/ELM327-emulator — CUSTOM_TB_INTAKE (PID 2187 on 7EA)',
     verified: false,
     notes:
-      'HV battery intake air temperature from HV ECU. ' +
-      'Formula: (A*256+B)*255.9/65535 - 50. Range: -50 to +205.9 °C. ' +
-      'This is the air temperature entering the battery pack cooling duct, ' +
-      'not an individual cell temperature. Single source (ELM327-emulator).',
+      'HV battery intake air temperature. (A*256+B)*255.9/65535 - 50. Range: -50 to +205.9 °C.',
     parse(raw) {
       const b = parseToyotaBytes(raw, 2);
       if (!b || b.length < 2) return null;
@@ -330,9 +311,7 @@ export const TOYOTA_PIDS = [
     notes:
       'HV ECU operating mode. Byte A values: 1=Drive, 2=Offset, 3=ExCharge, 4=Supply. ' +
       'When mode=1 (Drive) and engine RPM=0, the vehicle is in EV mode. ' +
-      'This is NOT a direct "EV mode" flag — it is the ECU control state. ' +
-      'To detect true EV driving, combine this with engine RPM = 0. ' +
-      'Returns raw mode number (1-4); UI should interpret the value.',
+      'ECU control state (mode 1-4). Combine with engine RPM=0 to detect true EV mode.',
     parse(raw) {
       const b = parseToyotaBytes(raw, 2);
       if (!b || b.length < 1) return null;
@@ -422,10 +401,8 @@ export const TOYOTA_PIDS = [
     verified: false,
     calibrationNeeded: true,
     notes:
-      'MG2 (drive motor) rotational speed from HV ECU. Signed 16-bit at bytes 2-3. ' +
-      'MG2 is the traction motor connected to the wheels through the reduction gear. ' +
-      'Proportional to vehicle speed (MG2_RPM ≈ speed_kmh * ~70). ' +
-      'See MG1 RPM notes for verification guidance.',
+      'MG2 (drive motor) RPM from HV ECU. Signed 16-bit at bytes 2-3. ' +
+      'Proportional to vehicle speed (~speed_kmh * 70).',
     parse(raw) {
       const b = parseToyotaBytes(raw, 2);
       if (!b || b.length < 4) return null;
@@ -466,10 +443,8 @@ export const TOYOTA_PIDS = [
     source: 'https://github.com/Ircama/ELM327-emulator — CUSTOM_MG2_TORQ (PID 2168 on 7EA)',
     verified: false,
     notes:
-      'MG2 (drive motor) torque from HV ECU. Formula: (A*256+B)/8 - 4096. ' +
-      'Positive = propulsion, negative = regenerative braking. ' +
-      'Confirmed by ELM327-emulator and PriusChat. ' +
-      'When value is negative and brakes are applied, this IS the actual regen torque.',
+      'MG2 (drive motor) torque. (A*256+B)/8 - 4096 Nm. ' +
+      'Positive = propulsion, negative = regenerative braking.',
     parse(raw) {
       const b = parseToyotaBytes(raw, 2);
       if (!b || b.length < 2) return null;
@@ -519,12 +494,7 @@ export const TOYOTA_PIDS = [
     source: 'https://github.com/Ircama/ELM327-emulator — CUSTOM_INJ_VOL (PID 213C on 7E8)',
     verified: false,
     notes:
-      'Injector volume from Engine ECU. Formula: (A*256+B)*2.047/65535 mL per injection. ' +
-      'Multiply by RPM and cylinder count to get instantaneous consumption rate. ' +
-      'Alternative: standard PID 015E gives fuel rate in L/h directly. ' +
-      'This Toyota PID gives raw injection volume which is useful for precise calculation ' +
-      'but requires additional math for L/100km display. ' +
-      'Single source (ELM327-emulator) — formula may need vehicle calibration.',
+      '↓ Superseded — active version of this PID is in the ⛽ FUEL section below.',
     parse(raw) {
       const b = parseToyotaBytes(raw, 2);
       if (!b || b.length < 2) return null;
@@ -532,6 +502,66 @@ export const TOYOTA_PIDS = [
     },
   },
   */
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ⛽ FUEL
+  // ══════════════════════════════════════════════════════════════════════════
+  //
+  // Standard OBD2 PIDs 015E (Fuel Rate) and 012F (Fuel Tank Level) return NO DATA
+  // on Toyota THS-II hybrids — both absent from the engine ECU PIDS support bitmaps.
+  // (See pids-standard.js disabled entries for the evidence.)
+  //
+  // Proprietary replacements confirmed by Ircama/ELM327-emulator obd_message.py
+  // (Toyota Auris Hybrid real-vehicle capture, CC BY-NC-SA 4.0):
+  //   CUSTOM_FUEL_LEVEL  → PID 2129 at 7C0 (ICE/instrument ECU)
+  //   CUSTOM_INJ_VOL     → PID 213C at 7E0 (engine ECU)
+
+  {
+    pid: '2129',
+    name: 'Fuel Tank Level',
+    unit: 'L',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7C0',
+    source: 'Ircama/ELM327-emulator obd_message.py L3323–3346 — CUSTOM_FUEL_LEVEL (Toyota Auris Hybrid real-capture)',
+    verified: true,
+    notes:
+      'Fuel tank level in Liters from ICE/instrument ECU (7C0 → 7C8). ' +
+      'Response frame: "7C8 03 61 29 [A]". Formula: A / 2. Range: 0–50 L. ' +
+      'NHP130 Aqua Gen2 tank capacity: 36 L. ' +
+      'README validation: ATSH 7C0 → 2129 → 7C8 03 61 29 1F → 31/2 = 15.5 L ✓. ' +
+      '⚠ PID collision: same bytes 2129 sent to 7C4 (A/C ECU) return driver set-temperature — ' +
+      'ATSH 7C0 must be set before every poll.',
+    parse(raw) {
+      const b = parseToyotaBytes(raw, 2);
+      if (!b || b.length < 1) return null;
+      return b[0] / 2;
+    },
+  },
+  {
+    pid: '213C',
+    name: 'Inj Volume (×10 strokes)',
+    unit: 'mL',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Ircama/ELM327-emulator obd_message.py L3839–3863 — CUSTOM_INJ_VOL (Toyota Auris Hybrid real-capture)',
+    verified: true,
+    notes:
+      'Cylinder 1 injection volume accumulated over 10 consecutive strokes, Engine ECU (7E0 → 7E8). ' +
+      'Response: "7E8 07 61 3C [A][B][C][D][E]". Formula: (A×256+B)×2.047/65535 mL. ' +
+      '[C][D] = simultaneous second snapshot of same cylinder; [E] = status byte (0x80). ' +
+      'Idle samples from emulator: 0.067–0.172 mL/10-strokes. ' +
+      'Approximate L/h derivation (not computed here — requires RPM from PID 010C): ' +
+      '  rate_Lh ≈ injVol_mL × RPM × 12 / 1000. ' +
+      '  (each cyl fires every 2 revs; ×4 cyls; ×10-stroke window ÷10 × RPM/2; mL÷1000→L; ×60min). ' +
+      '⚠ PID collision: 213C at 7B0 = CUSTOM_STPRELAY (stop-light relay flag) — always set ATSH 7E0.',
+    parse(raw) {
+      const b = parseToyotaBytes(raw, 2);
+      if (!b || b.length < 2) return null;
+      return ((b[0] * 256) + b[1]) * 2.047 / 65535;
+    },
+  },
 
   // ══════════════════════════════════════════════════════════════════════════
   // ⚡ ENERGY & CONSUMPTION
@@ -606,13 +636,8 @@ export const TOYOTA_PIDS = [
     verified: false,
     calibrationNeeded: true,
     notes:
-      'Front-left wheel speed from Skid Control ECU (ABS). ' +
-      'Assumed at byte 0 of PID 2103 response. Formula: A * 1.28 (32/25). ' +
-      'Range: 0-326 km/h. The ELM327-emulator confirms PID 2103 on 7B0 for ' +
-      'wheel speed but lists only "FR Wheel Speed". Byte ordering (FL/FR/RL/RR) ' +
-      'may not match assumption — capture raw response and compare with GPS speed ' +
-      'while turning to identify each wheel. ' +
-      'Alternative: opendbc CAN ID 0xAA uses 15-bit values with factor 0.01 offset -67.67.',
+      'Front-left wheel speed from Skid Control ECU. Byte 0 * 1.28. Range: 0-326 km/h. ' +
+      'Byte ordering (FL/FR/RL/RR) may not match assumption — verify by turning.',
     parse(raw) {
       const b = parseToyotaBytes(raw, 2);
       if (!b || b.length < 1) return null;
