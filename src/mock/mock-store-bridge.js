@@ -13,7 +13,7 @@ import { PID_KEYS } from '../pid-keys.js';
 
 export class MockStoreBridge {
   /**
-   * @param {import('../../store.js').Store} store
+  * @param {import('../core/store/store.js').Store} store
    */
   constructor(store) {
     this._store = store;

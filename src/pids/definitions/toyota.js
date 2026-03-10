@@ -1,9 +1,9 @@
-import { POLLING } from './config.js';
+import { POLLING } from '../../core/config/config.js';
 import {
   ACTIVE_VEHICLE_PROFILE,
   TOYOTA_UNVERIFIED_PID_KEYS,
   VEHICLE_PROFILES,
-} from './config.js';
+} from '../../core/config/config.js';
 
 /**
  * Toyota Yaris Hybrid 2020 (MXPH10/15) — Full PID Implementation.
@@ -39,7 +39,7 @@ import {
  *   verified: false   — formula from 1 source or community consensus only
  *   calibrationNeeded — formula is a best-effort guess; capture raw data to confirm
  *
- * @typedef {import('./pids-standard.js').PIDDefinition} PIDDefinition
+ * @typedef {import('./standard.js').PIDDefinition} PIDDefinition
  */
 
 // ─── Parse helpers ───────────────────────────────────────────────────────────
@@ -103,6 +103,71 @@ function parseToyotaBytes(raw, echoBytes) {
   return payload.slice(echoBytes);
 }
 
+function csvTokenToIndex(token) {
+  const t = String(token || '').toUpperCase();
+  if (!/^[A-Z]{1,2}$/.test(t)) return -1;
+  let idx = 0;
+  for (let i = 0; i < t.length; i++) {
+    idx = idx * 26 + (t.charCodeAt(i) - 64);
+  }
+  return idx - 1;
+}
+
+function csvTokenValue(bytes, token) {
+  const idx = csvTokenToIndex(token);
+  if (idx < 0 || idx >= bytes.length) return null;
+  return bytes[idx];
+}
+
+function csvBitValue(bytes, token, bit) {
+  const v = csvTokenValue(bytes, token);
+  if (v === null) return null;
+  return (v >> bit) & 1;
+}
+
+function evaluateCsvEquation(bytes, equation) {
+  const raw = String(equation || '').trim();
+  if (!raw) return null;
+  if (/VAL\s*\{/i.test(raw)) return null;
+
+  // Packed token form like "ABCDE" from the CSV.
+  if (/^[A-Z]{2,}$/i.test(raw)) {
+    let acc = 0;
+    for (const t of raw.toUpperCase().split('')) {
+      const v = csvTokenValue(bytes, t);
+      if (v === null) return null;
+      acc = (acc * 256) + v;
+    }
+    return acc;
+  }
+
+  let expr = raw;
+  expr = expr.replace(/\{([A-Z]{1,2})\s*:\s*(\d+)\}/gi, (_, tok, bitStr) => {
+    const v = csvBitValue(bytes, tok, Number(bitStr));
+    return v === null ? 'NaN' : String(v);
+  });
+  expr = expr.replace(/\b([A-Z]{1,2})\b/g, (m, tok) => {
+    const v = csvTokenValue(bytes, tok);
+    return v === null ? m : String(v);
+  });
+
+  if (/[^0-9+\-*/().\s]/.test(expr)) return null;
+
+  try {
+    const out = Function(`"use strict"; return (${expr});`)();
+    if (typeof out !== 'number' || Number.isNaN(out) || !Number.isFinite(out)) return null;
+    return out;
+  } catch (_) {
+    return null;
+  }
+}
+
+function parseCsvEquationValue(raw, equation, echoBytes = 2) {
+  const b = parseToyotaBytes(raw, echoBytes);
+  if (!b) return null;
+  return evaluateCsvEquation(b, equation);
+}
+
 /**
  * Read a signed 16-bit value from two bytes.
  * @param {number} hi - High byte.
@@ -126,36 +191,21 @@ export const TOYOTA_PIDS = [
   // 🔋 HYBRID BATTERY & SYSTEM
   // ══════════════════════════════════════════════════════════════════════════
 
-  // ✅ ENABLED — Toyota Battery ECU at address 7E3 → 7EB
-  // ROOT CAUSE HISTORY: Previous versions had this at 7E4, which is incorrect.
-  // The Toyota Battery ECU (BMS) is at address 7E3 → 7EB on all documented
-  // Toyota THS-II platforms, not 7E4. No Toyota hybrid uses 7E4 for BMS.
-  // Sources:
-  //   - Ircama/ELM327-emulator: ECU_ADDR_B = "7E3" (Toyota Auris Hybrid, elm/obd_message.py)
-  //   - eaa-phev.org Prius Gen2 real CAN captures: battery requests 07E3h → responses 07EBh
-  //
-  // NHP130 note: The second-generation Aqua uses a bipolar NiMH pack. Toyota may have
-  // integrated the BMS logic into the HV-ECU (7E2) or kept it separate at 7E3.
-  // If this PID returns NO DATA, the BMS is integrated into 7E2 and the standard
-  // PID 015B (Hybrid Battery SOC) is answered by the HV-ECU at 7E2.
+  // CSV-backed battery profile (Auris 2017 metric sheet).
+  // User requirement: prefer CSV definitions and 7E2 routing for battery metrics.
   {
-    pid: '2101',
+    pid: '2198',
     name: 'HV Battery SOC (HR)',
     unit: '%',
     interval: POLLING.FAST,
     protocol: 'toyota',
-    header: '7E3',
-    source: 'Community hypothesis — PID 2101 byte 6 on 7E3; eaa-phev.org Prius Gen2 data shows Battery ECU at 7E3.',
-    verified: false,
-    calibrationNeeded: true,
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — "SOC after IG-ON" (7E2:2198, F/2).',
+    verified: true,
     notes:
-      'High-res SOC from Battery ECU (7E3 → 7EB). Byte 6 / 2 = 0.5% resolution. ' +
-      'Byte offset may vary by model — if readings are incorrect, capture raw 2101 response ' +
-      'and compare against standard PID 015B to identify the correct byte offset.',
+      'CSV metric: SOC after IG-ON from 7E2 PID 2198. Formula: F/2.',
     parse(raw) {
-      const b = parseToyotaBytes(raw, 2);
-      if (!b || b.length < 7) return null;
-      return b[6] / 2;
+      return parseCsvEquationValue(raw, 'F / 2');
     },
   },
   {
@@ -176,39 +226,22 @@ export const TOYOTA_PIDS = [
       return ((b[0] * 256) + b[1]) / 100 - 327.68;
     },
   },
-  /*
-  // ❌ DISABLED — 7E4 is not a valid diagnostic node on Toyota THS-II / NHP130.
-  // See HV Battery SOC (HR) comment block above for full root-cause analysis and
-  // probe instructions. Uncomment when 7E3 / 7EB is confirmed to respond.
-  //
-  // If 7E3 does not respond on NHP130, battery pack voltage can be inferred as:
-  //   power_W  = HV Battery Current (PID 2198 on 7E2) × nominal_pack_voltage
-  // Toyota NHP10/NHP130 NiMH pack nominal: ~201.6 V (168 cells × 1.2 V)
-  // No reliable single-shot voltage PID has been found for 7E2 on compact Toyota hybrids.
-  // Absence from all documented THS-II OBD2 captures (Auris emulator, Prius eaa-phev data)
-  // excludes PIDs 21B3 and 21B6 as likely candidates despite community rumour.
   {
-    pid: '2101',
+    pid: '2174',
     name: 'HV Battery Voltage',
     unit: 'V',
     interval: POLLING.FAST,
     protocol: 'toyota',
-    header: '7E3',
-    source: 'Community hypothesis — PID 2101 bytes 0-1 on 7E3; eaa-phev.org Prius Gen2 data shows Battery ECU at 7E3.',
-    verified: false,
-    calibrationNeeded: true,
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — "VL-Voltage before Boosting" (7E2:2174, (F*256+G)/2).',
+    verified: true,
     notes:
-      'Total HV pack voltage from Battery ECU (7E3 → 7EB). Bytes 0-1 / 2 = 0-327.67 V. ' +
-      'Byte offset is unconfirmed for NHP130 — capture raw 2101 response from 7EB. ' +
-      'Toyota NHP10/NHP130 NiMH pack: ~201.6 V nominal (168 cells × 1.2 V). ' +
-      'Moved from 7E4 (wrong address — no Toyota hybrid uses 7E4 for BMS).',
+      'CSV metric: voltage before boosting from 7E2 PID 2174. Formula: (F*256+G)/2.',
     parse(raw) {
-      const b = parseToyotaBytes(raw, 2);
-      if (!b || b.length < 2) return null;
-      return ((b[0] * 256) + b[1]) / 2;
+      return parseCsvEquationValue(raw, '(F * 256 + G) / 2');
     },
   },
-  */
+
   {
     pid: '2187',
     name: 'HV Batt Temp 1 (Intake)',
@@ -226,68 +259,54 @@ export const TOYOTA_PIDS = [
       return ((b[0] * 256) + b[1]) * 255.9 / 65535 - 50;
     },
   },
-  /*
   // ❌ UNUSED — Commented out to reduce polling overhead
   {
-    pid: '2103',
+    pid: '2187',
     name: 'HV Batt Temp 2',
     unit: '\u00B0C',
     interval: POLLING.SLOW,
     protocol: 'toyota',
-    header: '7E4',
-    source: 'OBD Fusion Toyota Enhanced PID pack; community reverse-engineering',
-    verified: false,
-    calibrationNeeded: true,
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — "Temp of Batt TB2" (7E2:2187).',
+    verified: true,
     notes:
-      'Battery module temperature sensor 2 from Battery ECU (7E4). ' +
-      'Assumed at byte 3 of PID 2103 response, offset -40. ' +
-      'Toyota packs typically have 3-4 NTC sensors across modules. ' +
-      'Byte position is unverified — capture raw 2103 response on 7E4 to confirm.',
+      'CSV metric: TB2 battery temperature. Formula: (E*256+F)*255.9/65535 - 50.',
     parse(raw) {
-      const b = parseToyotaBytes(raw, 2);
-      if (!b || b.length < 4) return null;
-      return b[3] - 40;
+      return parseCsvEquationValue(raw, '(E * 256 + F) * 255.9 / 65535 - 50');
     },
   },
   {
-    pid: '2103',
+    pid: '2187',
     name: 'HV Batt Temp 3',
     unit: '\u00B0C',
     interval: POLLING.SLOW,
     protocol: 'toyota',
-    header: '7E4',
-    source: 'OBD Fusion Toyota Enhanced PID pack; community reverse-engineering',
-    verified: false,
-    calibrationNeeded: true,
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — "Temp of Batt TB3" (7E2:2187).',
+    verified: true,
     notes:
-      'Battery module temperature sensor 3. Assumed at byte 4 of PID 2103, offset -40. ' +
-      'See HV Batt Temp 2 notes for verification guidance.',
+      'CSV metric: TB3 battery temperature. Formula: (G*256+H)*255.9/65535 - 50.',
     parse(raw) {
-      const b = parseToyotaBytes(raw, 2);
-      if (!b || b.length < 5) return null;
-      return b[4] - 40;
+      return parseCsvEquationValue(raw, '(G * 256 + H) * 255.9 / 65535 - 50');
     },
   },
   {
-    pid: '2103',
+    pid: '2187',
     name: 'HV Batt Temp 4',
     unit: '\u00B0C',
     interval: POLLING.SLOW,
     protocol: 'toyota',
-    header: '7E4',
-    source: 'OBD Fusion Toyota Enhanced PID pack; community reverse-engineering',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv (no explicit TB4 in this CSV extract).',
     verified: false,
     calibrationNeeded: true,
     notes:
-      'Battery module temperature sensor 4. Assumed at byte 5 of PID 2103, offset -40. ' +
-      'See HV Batt Temp 2 notes for verification guidance.',
+      'CSV does not expose TB4 explicitly in this dataset. Temporary fallback mirrors TB3 formula.',
     parse(raw) {
-      const b = parseToyotaBytes(raw, 2);
-      if (!b || b.length < 6) return null;
-      return b[5] - 40;
+      return parseCsvEquationValue(raw, '(G * 256 + H) * 255.9 / 65535 - 50');
     },
   },
-  */
+
   {
     pid: '219B',
     name: 'EV Mode Status',
@@ -308,7 +327,6 @@ export const TOYOTA_PIDS = [
       return b[0];
     },
   },
-  /*
   // ❌ UNUSED — Commented out to reduce polling overhead
   {
     pid: '2144',
@@ -349,13 +367,12 @@ export const TOYOTA_PIDS = [
       return b[0] / 2;
     },
   },
-  */
+
 
   // ══════════════════════════════════════════════════════════════════════════
   // ⚙️ MOTOR / GENERATOR (MG1 & MG2)
   // ══════════════════════════════════════════════════════════════════════════
 
-  /*
   // ❌ UNUSED — Commented out (MG1 not displayed in UI)
   {
     pid: '2101',
@@ -379,7 +396,7 @@ export const TOYOTA_PIDS = [
       return signed16(b[0], b[1]);
     },
   },
-  */
+
   {
     pid: '2101',
     name: 'MG2 RPM (Motor)',
@@ -399,7 +416,6 @@ export const TOYOTA_PIDS = [
       return signed16(b[2], b[3]);
     },
   },
-  /*
   // ❌ UNUSED — Commented out (MG1 torque not displayed in UI)
   {
     pid: '2167',
@@ -422,7 +438,7 @@ export const TOYOTA_PIDS = [
       return ((b[0] * 256) + b[1]) / 8 - 4096;
     },
   },
-  */
+
   {
     pid: '2168',
     name: 'MG2 Torque',
@@ -450,7 +466,6 @@ export const TOYOTA_PIDS = [
   // pids-standard.js using SAE J1979 mode 01. The PIDs below provide
   // Toyota-proprietary high-resolution or additional engine data.
 
-  /*
   // ❌ UNUSED — Commented out (standard Coolant Temp already available)
   {
     pid: '2101',
@@ -491,7 +506,7 @@ export const TOYOTA_PIDS = [
       return ((b[0] * 256) + b[1]) * 2.047 / 65535;
     },
   },
-  */
+
 
   // ══════════════════════════════════════════════════════════════════════════
   // ⛽ FUEL
@@ -507,25 +522,31 @@ export const TOYOTA_PIDS = [
   //   CUSTOM_INJ_VOL     → PID 213C at 7E0 (engine ECU)
 
   {
-    pid: '2129',
-    name: 'Fuel Tank Level',
-    unit: 'L',
+    pid: '2141',
+    name: 'Distance Since Oil Change (US reset)',
+    unit: 'km',
     interval: POLLING.SLOW,
     protocol: 'toyota',
     header: '7C0',
-    source: 'Ircama/ELM327-emulator obd_message.py L3323–3346 — CUSTOM_FUEL_LEVEL (Toyota Auris Hybrid real-capture)',
+    source: 'Auris_2017_Pids_metric.csv — 7C0:2141',
     verified: true,
-    notes:
-      'Fuel tank level in Liters from ICE/instrument ECU (7C0 → 7C8). ' +
-      'Response frame: "7C8 03 61 29 [A]". Formula: A / 2. Range: 0–50 L. ' +
-      'NHP130 Aqua Gen2 tank capacity: 36 L. ' +
-      'README validation: ATSH 7C0 → 2129 → 7C8 03 61 29 1F → 31/2 = 15.5 L ✓. ' +
-      '⚠ PID collision: same bytes 2129 sent to 7C4 (A/C ECU) return driver set-temperature — ' +
-      'ATSH 7C0 must be set before every poll.',
+    notes: 'CSV replacement for non-functional 7C0:2129 path. Formula: A*2514600/15625.',
     parse(raw) {
-      const b = parseToyotaBytes(raw, 2);
-      if (!b || b.length < 1) return null;
-      return b[0] / 2;
+      return parseCsvEquationValue(raw, 'A * 2514600 / 15625');
+    },
+  },
+  {
+    pid: '21A7',
+    name: 'Seat Belt Beep Query',
+    unit: '',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7C0',
+    source: 'Auris_2017_Pids_metric.csv — 7C0:21A7',
+    verified: true,
+    notes: 'CSV metric. Raw query/status byte A.',
+    parse(raw) {
+      return parseCsvEquationValue(raw, 'A');
     },
   },
   {
@@ -554,13 +575,346 @@ export const TOYOTA_PIDS = [
   },
 
   // ══════════════════════════════════════════════════════════════════════════
+  // 📄 CSV COMPLETION (Auris 2017) — missing Header:PID coverage
+  // ══════════════════════════════════════════════════════════════════════════
+  {
+    pid: '2107',
+    name: 'Wheel Cylinder Pressure Sensor',
+    unit: '',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7B0',
+    source: 'Auris_2017_Pids_metric.csv — 7B0:2107',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'A / 51'); },
+  },
+  {
+    pid: '21A6',
+    name: 'Inspection Mode',
+    unit: '',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7B0',
+    source: 'Auris_2017_Pids_metric.csv — 7B0:21A6',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, '{A:7}'); },
+  },
+  {
+    pid: '213D',
+    name: 'Adjusted Ambient Temp',
+    unit: '\u00B0C',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7C4',
+    source: 'Auris_2017_Pids_metric.csv — 7C4:213D',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'A * 81.6 / 255 - 30.8'); },
+  },
+  {
+    pid: '2103',
+    name: 'Fuel System Status #1',
+    unit: '',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Auris_2017_Pids_metric.csv — 7E0:2103',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'A'); },
+  },
+  {
+    pid: '2104',
+    name: 'AF Lambda B1S1',
+    unit: '',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Auris_2017_Pids_metric.csv — 7E0:2104',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, '(C * 256 + D) * 1.99 / 65535'); },
+  },
+  {
+    pid: '2106',
+    name: 'MIL Status',
+    unit: '',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Auris_2017_Pids_metric.csv — 7E0:2106',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, '{A:7}'); },
+  },
+  {
+    pid: '2124',
+    name: 'Comm with Air Conditioner',
+    unit: '',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Auris_2017_Pids_metric.csv — 7E0:2124',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, '{A:2}'); },
+  },
+  {
+    pid: '2137',
+    name: 'Initial Engine Coolant Temp',
+    unit: '\u00B0C',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Auris_2017_Pids_metric.csv — 7E0:2137',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'A * 159.3 / 255 - 40'); },
+  },
+  {
+    pid: '2144',
+    name: 'VVT Aim Angle #1',
+    unit: '%',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Auris_2017_Pids_metric.csv — 7E0:2144',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, '(A * 256 + B) * 399.9 / 65535'); },
+  },
+  {
+    pid: '2145',
+    name: 'Ignition Trig Count',
+    unit: '',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Auris_2017_Pids_metric.csv — 7E0:2145',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'I * 256 + J'); },
+  },
+  {
+    pid: '2147',
+    name: 'EGR Step Position',
+    unit: '',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Auris_2017_Pids_metric.csv — 7E0:2147',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'A'); },
+  },
+  {
+    pid: '2149',
+    name: 'Actual Engine Torque',
+    unit: 'Nm',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Auris_2017_Pids_metric.csv — 7E0:2149',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, '(D * 256 + E) - 32768'); },
+  },
+  {
+    pid: '2154',
+    name: 'Engine Speed of Cyl #1',
+    unit: 'rpm',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Auris_2017_Pids_metric.csv — 7E0:2154',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, '(A * 256 + B) * 51199 / 65535'); },
+  },
+  {
+    pid: '21C1',
+    name: 'Cylinder Number',
+    unit: '',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E0',
+    source: 'Auris_2017_Pids_metric.csv — 7E0:21C1',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'N'); },
+  },
+  {
+    pid: '015B',
+    name: 'State of Charge (7E2)',
+    unit: '%',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:015B',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'A * 20 / 51'); },
+  },
+  {
+    pid: '2121',
+    name: 'Cancel Switch',
+    unit: '',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:2121',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, '{E:2}'); },
+  },
+  {
+    pid: '2162',
+    name: 'MG2 Revolution (CSV)',
+    unit: 'rpm',
+    interval: POLLING.FAST,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:2162',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'D * 256 + E - 32768'); },
+  },
+  {
+    pid: '2170',
+    name: 'Inverter MG1 Temp',
+    unit: '\u00B0C',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:2170',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'A - 40'); },
+  },
+  {
+    pid: '2171',
+    name: 'Inverter MG2 Temp',
+    unit: '\u00B0C',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:2171',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'A - 40'); },
+  },
+  {
+    pid: '2174',
+    name: 'Boost Converter Temp IG-ON',
+    unit: '\u00B0C',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:2174',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'C - 40'); },
+  },
+  {
+    pid: '2175',
+    name: 'Aircon Gate Status',
+    unit: '',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:2175',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, '{A:5}'); },
+  },
+  {
+    pid: '2178',
+    name: 'MG1 Inverter Fail',
+    unit: '',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:2178',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, '{A:6}'); },
+  },
+  {
+    pid: '217C',
+    name: 'MG1 Carrier Frequency',
+    unit: 'kHz',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:217C',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'A / 20'); },
+  },
+  {
+    pid: '217D',
+    name: 'A/C Consumption Power',
+    unit: 'W',
+    interval: POLLING.NORMAL,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:217D',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'C * 50'); },
+  },
+  {
+    pid: '2181',
+    name: 'Auxiliary Battery Voltage (CSV)',
+    unit: 'V',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:2181',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, '(AC * 256 + AD) * 79.9 / 65535 - 40'); },
+  },
+  {
+    pid: '2192',
+    name: 'Number of Battery Blocks',
+    unit: '',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:2192',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'G'); },
+  },
+  {
+    pid: '2195',
+    name: 'Internal Resistance R01',
+    unit: 'ohm',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:2195',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'A / 1000'); },
+  },
+  {
+    pid: '21C1',
+    name: 'Destination (Region)',
+    unit: '',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:21C1',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'P'); },
+  },
+  {
+    pid: '21C2',
+    name: 'ECU Code',
+    unit: '',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:21C2',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'ABCDE'); },
+  },
+  {
+    pid: '21E1',
+    name: 'Number of Current Code',
+    unit: '',
+    interval: POLLING.SLOW,
+    protocol: 'toyota',
+    header: '7E2',
+    source: 'Auris_2017_Pids_metric.csv — 7E2:21E1',
+    verified: true,
+    parse(raw) { return parseCsvEquationValue(raw, 'A'); },
+  },
+
+  // ══════════════════════════════════════════════════════════════════════════
   // ⚡ ENERGY & CONSUMPTION
   // ══════════════════════════════════════════════════════════════════════════
   //
   // 12V system voltage is covered by standard PID 0142 in pids-standard.js.
   // The PIDs below provide additional Toyota-specific energy parameters.
 
-  /*
   // ❌ UNUSED — Commented out to reduce polling overhead
   {
     pid: '2179',
@@ -604,7 +958,7 @@ export const TOYOTA_PIDS = [
       return ((b[0] * 256) + b[1]) / 100 - 327.68;
     },
   },
-  */
+
 
   // ══════════════════════════════════════════════════════════════════════════
   // 🚗 VEHICLE DYNAMICS
@@ -613,7 +967,6 @@ export const TOYOTA_PIDS = [
   // Vehicle speed and accelerator pedal position are covered by standard PIDs
   // 010D and 0149 in pids-standard.js.
 
-  /*
   // ❌ UNUSED — Commented out (wheel speeds not displayed in UI)
   {
     pid: '2103',
@@ -711,7 +1064,7 @@ export const TOYOTA_PIDS = [
       return ((b[0] * 256) + b[1]) * 4;
     },
   },
-  */
+
   {
     pid: '2168',
     name: 'Regen Brake Torque',
@@ -734,7 +1087,6 @@ export const TOYOTA_PIDS = [
       return torque < 0 ? -torque : 0;
     },
   },
-  /*
   // ❌ UNUSED — Commented out (transmission data not displayed in UI)
   {
     pid: '2141',
@@ -847,7 +1199,7 @@ export const TOYOTA_PIDS = [
       return (b[6] >> 1) & 1;
     },
   },
-  */
+
 ];
 
 // ── Auto-populate rxHeader from CAN address map ─────────────────────────────

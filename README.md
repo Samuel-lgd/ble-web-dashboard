@@ -321,21 +321,27 @@ await tripManager.exportAllSummary()  // Download multi-trip CSV
 
 ```
 ├── index.html          — Single-page app shell
-├── main.js             — Legacy entry point (non-React UI), mock-aware
-├── config.js           — All constants + TRANSPORT_MODE flag
-├── ble-adapter.js      — Web Bluetooth connection layer
-├── elm327.js           — ELM327 protocol, command queue, response parsing
-├── atsh-manager.js     — ECU header switching for Toyota proprietary PIDs
-├── pid-manager.js      — Multi-PID polling rotation engine
-├── pids-standard.js    — Standard OBD2 PID definitions
-├── pids-toyota.js      — Toyota-specific PID definitions (separate file)
-├── store.js            — Reactive data store with 60s rolling history
-├── ui.js               — Functional dashboard UI (legacy)
 ├── manifest.json       — PWA manifest
-├── service-worker.js   — Offline shell caching
+├── public/
+│   ├── manifest.json   — PWA manifest copy for build output
+│   └── service-worker.js — Offline shell caching
 ├── src/
 │   ├── main.jsx            — React entry point, mock-aware bootstrap
 │   ├── pid-keys.js         — Shared PID key string constants
+│   ├── core/
+│   │   ├── config/config.js      — Runtime constants + transport profile
+│   │   ├── ble/ble-adapter.js    — Web Bluetooth connection layer
+│   │   ├── ble/elm327.js         — ELM327 protocol + queue/parser
+│   │   ├── ble/atsh-manager.js   — Toyota ECU header/flow-control switching
+│   │   ├── polling/pid-manager.js — Poll scheduler + metrics + active PID set
+│   │   └── store/store.js        — Reactive store with history
+│   ├── pids/
+│   │   ├── catalog.js            — Canonical PID catalog + key helpers
+│   │   ├── keys.js               — Stable PID key constants
+│   │   ├── selection.js          — UI/TRIP demand selection
+│   │   └── definitions/
+│   │       ├── standard.js       — Standard OBD2 PID definitions
+│   │       └── toyota.js         — Toyota proprietary PID definitions
 │   ├── mock/
 │   │   ├── mock-engine.js      — MockEngine + MockAdapter + MockELM
 │   │   ├── mock-physics.js     — Pure physics functions (noise, RPM, SOC, temps…)

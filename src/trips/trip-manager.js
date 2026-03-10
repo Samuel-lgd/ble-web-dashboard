@@ -7,7 +7,7 @@
  * @typedef {import('./trip-types.js').Snapshot} Snapshot
  * @typedef {import('./trip-types.js').TripStats} TripStats
  * @typedef {import('./trip-types.js').GeoPoint} GeoPoint
- * @typedef {import('../../store.js').Store} Store
+ * @typedef {import('../core/store/store.js').Store} Store
  */
 
 import { TripStorage } from './trip-storage.js';
@@ -20,21 +20,22 @@ import {
   autoTag,
 } from './trip-calculator.js';
 import { exportJSON, exportGPX, exportCSV, exportSummaryCSV } from './trip-exporter.js';
+import { PID_KEYS } from '../pids/keys.js';
 
 /**
  * PID key mappings — maps store keys to snapshot fields.
  * Keys follow the format: protocol:header:pid:name
  */
 const PID_MAP = {
-  'standard::010D:Vehicle Speed': 'speed',
-  'standard::010C:Engine RPM': 'rpm',
-  'standard::0105:Coolant Temp': 'coolantTemp',
-  'standard::010F:Intake Air Temp': 'intakeTemp',
-  'standard::0111:Throttle Position': 'throttle',
-  'standard::015E:Fuel Rate': 'fuelRate',
-  'standard::015B:Hybrid Battery SOC': 'hybridSOC',
-  'standard::0146:Ambient Air Temp': 'ambientTemp',
-  'standard::0143:Absolute Load': 'fuelLoad',
+  [PID_KEYS.VEHICLE_SPEED]: 'speed',
+  [PID_KEYS.ENGINE_RPM]: 'rpm',
+  [PID_KEYS.COOLANT_TEMP]: 'coolantTemp',
+  [PID_KEYS.INTAKE_AIR_TEMP]: 'intakeTemp',
+  [PID_KEYS.THROTTLE_POSITION]: 'throttle',
+  [PID_KEYS.FUEL_RATE]: 'fuelRate',
+  [PID_KEYS.HYBRID_BATTERY_SOC]: 'hybridSOC',
+  [PID_KEYS.AMBIENT_AIR_TEMP]: 'ambientTemp',
+  [PID_KEYS.ABSOLUTE_LOAD]: 'fuelLoad',
 };
 
 /**

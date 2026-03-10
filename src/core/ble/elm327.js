@@ -1,4 +1,4 @@
-import { ELM327 as CFG } from './config.js';
+import { ELM327 as CFG } from '../config/config.js';
 
 /**
  * @typedef {'idle' | 'initializing' | 'ready' | 'error'} ELM327State

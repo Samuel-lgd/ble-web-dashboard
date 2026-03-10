@@ -4,11 +4,12 @@ import { DashboardProvider } from './components/DashboardContext';
 import App from './components/App';
 import './index.css';
 
-import { TRANSPORT_MODE } from '../config.js';
-import { Store } from '../store.js';
+import { TRANSPORT_MODE } from './core/config/config.js';
+import { Store } from './core/store/store.js';
 import { TripManager } from './trips/trip-manager.js';
-import { POLLING, ELM327 as ELM_CFG } from '../config.js';
-import { selectPolledPids } from '../pid-selection.js';
+import { POLLING, ELM327 as ELM_CFG } from './core/config/config.js';
+import { selectPolledPids } from './pids/selection.js';
+import { getAllAvailablePidEntries, pidKeyFromDefinition } from './pids/catalog.js';
 
 // App entry point. TRANSPORT_MODE controls mock vs real BLE pipeline
 
@@ -53,12 +54,12 @@ async function bootstrap() {
       { STANDARD_PIDS },
       { TOYOTA_PIDS },
     ] = await Promise.all([
-      import('../ble-adapter.js'),
-      import('../elm327.js'),
-      import('../atsh-manager.js'),
-      import('../pid-manager.js'),
-      import('../pids-standard.js'),
-      import('../pids-toyota.js'),
+      import('./core/ble/ble-adapter.js'),
+      import('./core/ble/elm327.js'),
+      import('./core/ble/atsh-manager.js'),
+      import('./core/polling/pid-manager.js'),
+      import('./pids/definitions/standard.js'),
+      import('./pids/definitions/toyota.js'),
     ]);
 
     adapter = new BLEAdapter();
@@ -69,7 +70,16 @@ async function bootstrap() {
 
     const includeAll = POLLING.PROFILE === 'all';
     const { selected, missingKeys, selectedKeys } = selectPolledPids(STANDARD_PIDS, TOYOTA_PIDS, { includeAll });
-    pidManager.addPIDs(selected);
+
+    // Register full catalog so debug mode can toggle/test any known PID.
+    const allDefinitions = getAllAvailablePidEntries().map((entry) => entry.definition);
+    pidManager.addPIDs(allDefinitions, { active: false });
+
+    // Keep initial behavior: only UI/trip demand keys are active by default.
+    const initialActiveKeys = includeAll
+      ? allDefinitions.map((pid) => pidKeyFromDefinition(pid))
+      : selected.map((pid) => pidKeyFromDefinition(pid));
+    pidManager.setActivePidKeys(initialActiveKeys);
 
     if (!includeAll) {
       console.log(`[POLL] profile=ui selected=${selected.length} keys=${selectedKeys.length}`);

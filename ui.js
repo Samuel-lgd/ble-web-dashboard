@@ -1,6 +1,7 @@
 import { UI } from './config.js';
 import { STANDARD_PIDS } from './pids-standard.js';
 import { TOYOTA_PIDS } from './pids-toyota.js';
+import { pidKeyFromDefinition } from './src/pids/catalog.js';
 
 /**
  * Minimal functional UI — renders connection controls, a raw log panel,
@@ -191,7 +192,6 @@ export class DashboardUI {
    * @returns {string}
    */
   _pidKey(pid) {
-    const h = pid.header || '';
-    return `${pid.protocol}:${h}:${pid.pid}:${pid.name}`;
+    return pidKeyFromDefinition(pid);
   }
 }

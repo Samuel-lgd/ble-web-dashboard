@@ -236,7 +236,7 @@ function createInitialState(ambientTemp = 14) {
 
 export class MockEngine {
   /**
-   * @param {import('../../store.js').Store} store
+  * @param {import('../core/store/store.js').Store} store
    * @param {import('../../src/trips/trip-manager.js').TripManager} tripManager
    * @param {MockAdapter} mockAdapter
    * @param {MockELM} mockElm

@@ -1,4 +1,4 @@
-import { POLLING } from './config.js';
+import { POLLING } from '../../core/config/config.js';
 
 /**
  * @typedef {Object} PIDDefinition
@@ -79,7 +79,6 @@ export const STANDARD_PIDS = [
       return b[0] - 40;
     },
   },
-  /*
   // ❌ UNUSED — Commented out to reduce polling overhead
   {
     pid: '010F',
@@ -105,7 +104,6 @@ export const STANDARD_PIDS = [
       return (b[0] * 100) / 255;
     },
   },
-  */
   {
     pid: '015B',
     name: 'Hybrid Battery SOC',
@@ -118,7 +116,6 @@ export const STANDARD_PIDS = [
       return (b[0] * 100) / 255;
     },
   },
-  /*
   // ❌ UNUSED — Commented out to reduce polling overhead
   {
     pid: '015C',
@@ -132,8 +129,7 @@ export const STANDARD_PIDS = [
       return b[0] - 40;
     },
   },
-  */
-  /*
+
   // ❌ DISABLED — Not supported on Toyota NHP130 / THS-II hybrids
   //
   // Mode 01 PID 0x5E is absent from the Toyota Auris Hybrid PIDS_C bitmap
@@ -154,8 +150,7 @@ export const STANDARD_PIDS = [
       return ((b[0] * 256) + b[1]) / 20;
     },
   },
-  */
-  /*
+
   // ❌ UNUSED — Commented out to reduce polling overhead
   {
     pid: '0143',
@@ -211,8 +206,7 @@ export const STANDARD_PIDS = [
       return ((b[0] * 256) + b[1]) / 1000;
     },
   },
-  */
-  /*
+
   // ❌ DISABLED — Not supported on Toyota NHP130 / THS-II hybrids
   //
   // Mode 01 PID 0x2F is absent from the Toyota engine ECU (7E0) PIDS_B bitmap
@@ -235,5 +229,5 @@ export const STANDARD_PIDS = [
       return (b[0] * 100) / 255;
     },
   },
-  */
+
 ];

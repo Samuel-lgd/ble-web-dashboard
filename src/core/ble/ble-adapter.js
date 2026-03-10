@@ -1,4 +1,4 @@
-import { BLE_PROFILES } from './config.js';
+import { BLE_PROFILES } from '../config/config.js';
 
 /**
  * @typedef {'disconnected' | 'connecting' | 'connected'} BLEState

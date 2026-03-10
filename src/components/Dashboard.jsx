@@ -8,7 +8,7 @@ import HvBatterySocGauge from './gauges/HvBatterySocGauge';
 import RegenAccelDelta from './RegenAccelDelta';
 import BleConnectPanel from './BleConnectPanel';
 import { useDashboard } from './DashboardContext';
-import { TRANSPORT_MODE } from '../../config.js';
+import { TRANSPORT_MODE } from '../core/config/config.js';
 
 /**
  * Shows BleConnectPanel when BLE mode and not yet connected,

@@ -1,4 +1,4 @@
-import { STORE } from './config.js';
+import { STORE } from '../config/config.js';
 
 /**
  * @typedef {Object} PIDEntry

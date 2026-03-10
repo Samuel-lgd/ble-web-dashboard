@@ -1,4 +1,4 @@
-import { pidKeyFromDefinition } from './src/pids/catalog.js';
+import { pidKeyFromDefinition } from '../../pids/catalog.js';
 
 /**
  * PIDManager — orchestrates polling multiple PIDs in rotation.
@@ -11,20 +11,20 @@ import { pidKeyFromDefinition } from './src/pids/catalog.js';
  */
 export class PIDManager {
   /**
-   * @param {import('./elm327.js').ELM327} elm
-   * @param {import('./atsh-manager.js').ATSHManager} atshManager
-   * @param {import('./store.js').Store} store
+  * @param {import('../ble/elm327.js').ELM327} elm
+  * @param {import('../ble/atsh-manager.js').ATSHManager} atshManager
+  * @param {import('../store/store.js').Store} store
    */
   constructor(elm, atshManager, store) {
     this._elm = elm;
     this._atsh = atshManager;
     this._store = store;
 
-    /** @type {import('./pids-standard.js').PIDDefinition[]} */
+    /** @type {import('../../pids/definitions/standard.js').PIDDefinition[]} */
     this._pids = [];
     /** @type {Map<string, object>} */
     this._pidMeta = new Map();
-    /** @type {Map<string, import('./pids-standard.js').PIDDefinition>} */
+    /** @type {Map<string, import('../../pids/definitions/standard.js').PIDDefinition>} */
     this._pidDefs = new Map();
     /** @type {Set<string>} */
     this._activePidKeys = new Set();
@@ -67,7 +67,7 @@ export class PIDManager {
   /**
    * Register PID definitions to be polled.
    * Validates that Toyota PIDs have rxHeader defined.
-   * @param {import('./pids-standard.js').PIDDefinition[]} pids
+  * @param {import('../../pids/definitions/standard.js').PIDDefinition[]} pids
    */
   addPIDs(pids, { active = true } = {}) {
     for (const pid of pids) {
@@ -243,7 +243,7 @@ export class PIDManager {
   /**
    * Find the next PID that is due for polling based on its interval.
    * Prioritizes PIDs that are most overdue.
-   * @returns {import('./pids-standard.js').PIDDefinition | null}
+  * @returns {import('../../pids/definitions/standard.js').PIDDefinition | null}
    */
   _nextDuePID(preferredRouteKey = null) {
     const now = Date.now();
@@ -282,7 +282,7 @@ export class PIDManager {
   /**
    * Poll a single PID: switch header if needed, send command, parse response,
    * update the store.
-   * @param {import('./pids-standard.js').PIDDefinition} pid
+  * @param {import('../../pids/definitions/standard.js').PIDDefinition} pid
    */
   async _pollPID(pid) {
     const key = this._pidKey(pid);
@@ -350,7 +350,7 @@ export class PIDManager {
    * Generate a unique key for a PID definition.
    * Combines protocol, header (if any), pid command, and name to handle
    * multiple PIDs that share the same command but parse different bytes.
-   * @param {import('./pids-standard.js').PIDDefinition} pid
+  * @param {import('../../pids/definitions/standard.js').PIDDefinition} pid
    * @returns {string}
    */
   _pidKey(pid) {
@@ -359,7 +359,7 @@ export class PIDManager {
 
   /**
    * Group key used for scheduler stickiness and header churn reduction.
-   * @param {import('./pids-standard.js').PIDDefinition} pid
+  * @param {import('../../pids/definitions/standard.js').PIDDefinition} pid
    * @returns {string}
    */
   _routeKey(pid) {

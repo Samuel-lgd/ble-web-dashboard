@@ -3,7 +3,8 @@ import { DashboardUI } from './ui.js';
 import { TripManager } from './src/trips/trip-manager.js';
 import { TRANSPORT_MODE } from './config.js';
 import { POLLING, ELM327 as ELM_CFG } from './config.js';
-import { selectPolledPids } from './pid-selection.js';
+import { selectPolledPids } from './src/pids/selection.js';
+import { getAllAvailablePidEntries, pidKeyFromDefinition } from './src/pids/catalog.js';
 
 /**
  * Application entry point (legacy non-React UI).
@@ -61,7 +62,15 @@ if (TRANSPORT_MODE === 'mock') {
 
     const includeAll = POLLING.PROFILE === 'all';
     const { selected, missingKeys } = selectPolledPids(STANDARD_PIDS, TOYOTA_PIDS, { includeAll });
-    pidManager.addPIDs(selected);
+
+    const allDefinitions = getAllAvailablePidEntries().map((entry) => entry.definition);
+    pidManager.addPIDs(allDefinitions, { active: false });
+
+    const initialActiveKeys = includeAll
+      ? allDefinitions.map((pid) => pidKeyFromDefinition(pid))
+      : selected.map((pid) => pidKeyFromDefinition(pid));
+    pidManager.setActivePidKeys(initialActiveKeys);
+
     if (missingKeys.length) {
       console.warn('[POLL] Missing PID definitions for keys:', missingKeys);
     }

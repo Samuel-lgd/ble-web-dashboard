@@ -1,6 +1,6 @@
-import { STANDARD_PIDS } from '../pids-standard.js';
-import { TOYOTA_PIDS } from '../pids-toyota.js';
-import { selectPolledPids } from '../pid-selection.js';
+import { STANDARD_PIDS } from '../src/pids/definitions/standard.js';
+import { TOYOTA_PIDS } from '../src/pids/definitions/toyota.js';
+import { selectPolledPids } from '../src/pids/selection.js';
 
 function pidKey(pid) {
   return `${pid.protocol}:${pid.header || ''}:${pid.pid}:${pid.name}`;
