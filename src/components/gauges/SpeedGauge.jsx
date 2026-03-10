@@ -13,7 +13,7 @@ export default function SpeedGauge() {
 
   // Derived values
   const l100km = speed > 5 ? (fuelRate / speed) * 100 : 0;
-  const kwDraw = Math.max(0, -(hvVoltage * hvCurrent)) / 1000; // only positive when discharging
+  const kwDraw = Math.max(0, (hvVoltage * hvCurrent)) / 1000; // only positive when charging (regen)
   const smoothSpeed   = useSmoothedValue(speed);
   const smoothL100km  = useSmoothedValue(l100km);
   const smoothKwDraw  = useSmoothedValue(kwDraw);

@@ -116,6 +116,44 @@ async function bootstrap() {
   window.store       = store;
   window.pidManager  = pidManager;
 
+  // Initialize screen wake lock to prevent screensaver during driving
+  // This keeps the screen on even if the device would normally sleep after 30 seconds
+  let wakeLock = null;
+
+  async function acquireWakeLock() {
+    try {
+      if (navigator.wakeLock) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        console.log('[WAKE_LOCK] Screen wake lock acquired');
+
+        // Re-acquire if the browser releases it (e.g., device sleep, focus loss)
+        wakeLock.addEventListener('release', () => {
+          console.log('[WAKE_LOCK] Released, attempting re-acquire...');
+          acquireWakeLock();
+        });
+      } else {
+        console.warn('[WAKE_LOCK] Wake Lock API not supported on this device');
+      }
+    } catch (err) {
+      console.warn('[WAKE_LOCK] Failed to acquire:', err.message);
+    }
+  }
+
+  // Request wake lock on app start
+  acquireWakeLock();
+
+  // Release wake lock if user leaves the app
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden) {
+      if (wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+      }
+    } else {
+      acquireWakeLock();
+    }
+  });
+
   // Mount React — same component tree regardless of transport mode
   root.render(
     <DashboardProvider

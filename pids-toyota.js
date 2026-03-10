@@ -126,26 +126,18 @@ export const TOYOTA_PIDS = [
   // 🔋 HYBRID BATTERY & SYSTEM
   // ══════════════════════════════════════════════════════════════════════════
 
-  /*
-  // ❌ DISABLED — 7E4 is not a valid diagnostic node on Toyota THS-II / NHP130.
-  //
-  // ROOT CAUSE: The Toyota Battery ECU (BMS) is at address 7E3 → 7EB on all documented
+  // ✅ ENABLED — Toyota Battery ECU at address 7E3 → 7EB
+  // ROOT CAUSE HISTORY: Previous versions had this at 7E4, which is incorrect.
+  // The Toyota Battery ECU (BMS) is at address 7E3 → 7EB on all documented
   // Toyota THS-II platforms, not 7E4. No Toyota hybrid uses 7E4 for BMS.
   // Sources:
   //   - Ircama/ELM327-emulator: ECU_ADDR_B = "7E3" (Toyota Auris Hybrid, elm/obd_message.py)
   //   - eaa-phev.org Prius Gen2 real CAN captures: battery requests 07E3h → responses 07EBh
   //
-  // NHP130 additional note: The second-generation Aqua uses a bipolar NiMH pack whose
-  // cell-balancing is inherently passive. Toyota may have integrated the BMS logic into
-  // the HV-ECU (7E2) rather than a dedicated 7E3 node. To test:
-  //   1. ATSH 7E3 → send "2100" → check if 7EB responds with a PID support bitmap.
-  //   2. If it does, uncomment and use the 7E3 PID block below.
-  //   3. If it returns NO DATA, the BMS is integrated into 7E2 and no separate SOC
-  //      PID is needed — standard PID 015B (Hybrid Battery SOC) is answered by the
-  //      HV-ECU at 7E2 via functional broadcast and provides an adequate reading.
-  //
-  // See also: standard PID 015B (currently active) which provides hybrid SOC at 0.4%
-  // resolution without requiring a header switch. Formula: A * 100 / 255.
+  // NHP130 note: The second-generation Aqua uses a bipolar NiMH pack. Toyota may have
+  // integrated the BMS logic into the HV-ECU (7E2) or kept it separate at 7E3.
+  // If this PID returns NO DATA, the BMS is integrated into 7E2 and the standard
+  // PID 015B (Hybrid Battery SOC) is answered by the HV-ECU at 7E2.
   {
     pid: '2101',
     name: 'HV Battery SOC (HR)',
@@ -158,16 +150,14 @@ export const TOYOTA_PIDS = [
     calibrationNeeded: true,
     notes:
       'High-res SOC from Battery ECU (7E3 → 7EB). Byte 6 / 2 = 0.5% resolution. ' +
-      'Byte offset is unconfirmed for NHP130 — capture full 2101 response from 7EB ' +
-      'and compare against standard PID 015B reading to identify the SOC byte. ' +
-      'Moved from 7E4 (wrong address — no Toyota hybrid uses 7E4 for BMS).',
+      'Byte offset may vary by model — if readings are incorrect, capture raw 2101 response ' +
+      'and compare against standard PID 015B to identify the correct byte offset.',
     parse(raw) {
       const b = parseToyotaBytes(raw, 2);
       if (!b || b.length < 7) return null;
       return b[6] / 2;
     },
   },
-  */
   {
     pid: '2198',
     name: 'HV Battery Current',

@@ -54,16 +54,16 @@ export default function HvBatterySocGauge() {
   // Battery temp color
   const battTempColor = battTemp > 40 ? BATT_TEMP_COLORS.hot : battTemp > 25 ? BATT_TEMP_COLORS.normal : BATT_TEMP_COLORS.cold;
 
-  const kw = (hvVoltage * hvCurrent) / 1000; // positive = charging (regen), negative = discharging (propulsion)
+  const kw = -(hvVoltage * hvCurrent) / 1000; // positive = discharging (propulsion), negative = charging (regen)
 
-  const isCharging = kw > 0.1;
+  const isDischarging = kw > 0.1;
   const kwAbs = Math.abs(kw);
 
   const gaugeMin = 40, gaugeMax = 70;
   const socAngle = valueToAngle(Math.max(gaugeMin, Math.min(gaugeMax, smoothSoc)), gaugeMin, gaugeMax);
 
-  // Regen arc spans top semicircle (-90° → +90°): 0 kW parks at 9 o'clock, 20 kW at 3 o'clock
-  const kwClamped = isCharging ? Math.min(kwAbs, 20) : 0;
+  // Discharge arc spans top semicircle (-90° → +90°): 0 kW parks at 9 o'clock, 20 kW at 3 o'clock
+  const kwClamped = isDischarging ? Math.min(kwAbs, 20) : 0;
   const kwAngle   = valueToAngle(kwClamped, 0, 20, -90, 90);
 
 
@@ -114,8 +114,8 @@ export default function HvBatterySocGauge() {
           fill="none" stroke="url(#soc-arc-electric)" strokeWidth="3" strokeLinecap="round"
           opacity="0.85" filter="url(#soc-arc-glow)" />
 
-        {/* Regen arc gauge — filled arc showing current kW */}
-        {isCharging && kwClamped > 0.1 && (
+        {/* Discharge arc gauge — filled arc showing current kW */}
+        {isDischarging && kwClamped > 0.1 && (
           <path d={describeArc(0, 0, REGEN_R, -90, kwAngle)}
             fill="none" stroke="url(#regen-grad)" strokeWidth="2.5" strokeLinecap="round"
             opacity="0.8" filter="url(#regen-glow)" />
@@ -129,32 +129,32 @@ export default function HvBatterySocGauge() {
             opacity={0.6} />
         ))}
 
-        {/* "REGEN" label tucked between arcs at 12 o'clock */}
+        {/* "DRAIN" label tucked between arcs at 12 o'clock */}
         <text x="0" y="-22"
-          fill={isCharging ? REGEN_COLORS.text : '#152525'}
+          fill={isDischarging ? REGEN_COLORS.text : '#152525'}
           fontSize="2.6" textAnchor="middle" dominantBaseline="central"
           className="font-orbitron" style={{ letterSpacing: '1.2px' }}>
-          REGEN
+          DRAIN
         </text>
 
-        {/* kW value inside the regen arc zone */}
+        {/* kW value inside the discharge arc zone */}
         <text x="0" y="-16"
-          fill={isCharging ? REGEN_COLORS.textActive : '#0f200f'}
+          fill={isDischarging ? REGEN_COLORS.textActive : '#0f200f'}
           fontSize="5.5" textAnchor="middle" dominantBaseline="central"
           className="font-orbitron" style={{ fontWeight: 700 }}>
-          {isCharging ? kwAbs.toFixed(1) : '0'}
+          {isDischarging ? kwAbs.toFixed(1) : '0'}
         </text>
         <text x="0" y="-11"
-          fill={isCharging ? REGEN_COLORS.text : '#0f200f'}
+          fill={isDischarging ? REGEN_COLORS.text : '#0f200f'}
           fontSize="2.8" textAnchor="middle" dominantBaseline="central"
           className="font-orbitron">
           kW
         </text>
 
         <GaugeNeedle angle={kwAngle} length={28}
-          color={isCharging ? REGEN_COLORS.needle : REGEN_COLORS.needleInactive}
-          glowColor={isCharging ? REGEN_COLORS.needle : '#0a1a0a'}
-          glowWidth={4} glowOpacity={isCharging ? 0.22 : 0.08}
+          color={isDischarging ? REGEN_COLORS.needle : REGEN_COLORS.needleInactive}
+          glowColor={isDischarging ? REGEN_COLORS.needle : '#0a1a0a'}
+          glowWidth={4} glowOpacity={isDischarging ? 0.22 : 0.08}
           capId="soc" />
 
         {/* SOC value — large for glanceability */}
