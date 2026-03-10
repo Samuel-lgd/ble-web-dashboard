@@ -67,7 +67,7 @@ export default function FuelConsumptionGauge() {
         <GaugeNeedle angle={needleAngle} length={32} backLength={3}
           color="#f59e0b" strokeWidth={1.2} capId="fuel" capR={2.5} dotR={1} />
 
-        {/* Value display */}
+        {/* Value display — 4 fixed slots: " 0.0" … "15.0" */}
         <GaugeValueReadout
           value={smoothL100km.toFixed(1)}
           unit="L/100km"

@@ -76,7 +76,7 @@ export default function BatteryCurrentGauge() {
           color={isCharging ? '#22c55e' : '#00cfff'}
           strokeWidth={1.2} capId="curr" capR={2.5} dotR={1} />
 
-        {/* Value */}
+        {/* Value — 5 fixed slots: " -60.0" … " 60.0" */}
         <GaugeValueReadout
           value={smoothCurrent.toFixed(1)}
           unit="A"

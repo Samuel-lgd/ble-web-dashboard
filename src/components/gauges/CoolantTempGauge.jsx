@@ -63,9 +63,11 @@ export default function CoolantTempGauge() {
         })}
       </div>
 
-      {/* Numeric value */}
+      {/* Numeric value — fixed-width block prevents layout shift ("40°" … "120°") */}
       <span className="text-[8px] font-bold font-orbitron" style={{ color: textColor }}>
-        {Math.round(temp)}°
+        <span style={{ display: 'inline-block', minWidth: '4ch', textAlign: 'right' }}>
+          {Math.round(temp)}
+        </span>°
       </span>
     </div>
   );

@@ -120,12 +120,18 @@ export default function FuelLevelGauge() {
       {/* E label */}
       <span style={{ fontSize: '4.5px', color: '#666' }}>E</span>
 
-      {/* Numeric % */}
+      {/* Numeric % — fixed-width block prevents layout shift ("0%" … "100%") */}
       <span
         className={isLow ? 'fuel-warn-pulse' : undefined}
         style={{ fontSize: '9px', fontWeight: 700, color: zone.color, lineHeight: 1 }}
       >
-        {level != null ? `${Math.round(displayLevel)}%` : '--'}
+        {level != null ? (
+          <>
+            <span style={{ display: 'inline-block', minWidth: '3ch', textAlign: 'right' }}>
+              {Math.round(displayLevel)}
+            </span>%
+          </>
+        ) : '--'}
       </span>
 
       {/* Zone label */}

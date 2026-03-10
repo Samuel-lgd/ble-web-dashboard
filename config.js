@@ -15,7 +15,7 @@
  * The mock files are loaded via dynamic import and are excluded from
  * production bundles when this is set to 'ble'.
  */
-export const TRANSPORT_MODE = 'mock'; // 'ble' | 'serial' | 'mock'
+export const TRANSPORT_MODE = localStorage.getItem('transportMode') || 'ble';
 
 // BLE GATT profiles for known OBD2 adapters (VLinker, ELM327, HM-10)
 export const BLE_PROFILES = [

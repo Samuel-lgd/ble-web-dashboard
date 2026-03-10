@@ -239,8 +239,68 @@ export function useSmoothedValue(target) {
 }
 
 /**
+ * Renders a string in fixed character slots to prevent visual jitter when
+ * numeric values change digit count (e.g. 999 -> 1000).
+ */
+export function FixedNumericText({
+  text,
+  x = 0,
+  y,
+  fontSize,
+  fill,
+  fontWeight = 700,
+  textAnchor = 'middle',
+  dominantBaseline = 'central',
+}) {
+  const chars = Array.from(text ?? '');
+
+  function slotWidth(ch) {
+    if (ch === '.') return fontSize * 0.28;
+    if (ch === '-') return fontSize * 0.38;
+    if (ch === '%') return fontSize * 0.68;
+    if (ch === '°') return fontSize * 0.42;
+    return fontSize * 0.78;
+  }
+
+  let totalW = 0;
+  const slots = chars.map((ch) => {
+    const w = slotWidth(ch);
+    const cx = totalW + w / 2;
+    totalW += w;
+    return { ch, cx };
+  });
+
+  const ox = textAnchor === 'middle'
+    ? x - totalW / 2
+    : textAnchor === 'end'
+      ? x - totalW
+      : x;
+
+  return (
+    <g>
+      {slots.map(({ ch, cx }, i) => (
+        ch === ' ' ? null : (
+          <text
+            key={i}
+            x={ox + cx}
+            y={y}
+            fill={fill}
+            fontSize={fontSize}
+            textAnchor="middle"
+            dominantBaseline={dominantBaseline}
+            className="font-orbitron"
+            style={{ fontWeight }}
+          >
+            {ch}
+          </text>
+        )
+      ))}
+    </g>
+  );
+}
+
+/**
  * Shared numeric + unit readout used by multiple gauges.
- * Pure presentational helper to keep markup consistent without changing visuals.
  */
 export function GaugeValueReadout({
   value,
@@ -255,12 +315,20 @@ export function GaugeValueReadout({
   valueWeight = 700,
   textAnchor = 'middle',
 }) {
+  const valueStr = String(value ?? '');
+
   return (
     <>
-      <text x={x} y={yValue} fill={valueFill} fontSize={valueFontSize} textAnchor={textAnchor}
-        className="font-orbitron" style={{ fontWeight: valueWeight }}>
-        {value}
-      </text>
+      <FixedNumericText
+        text={valueStr}
+        x={x}
+        y={yValue}
+        fill={valueFill}
+        fontSize={valueFontSize}
+        fontWeight={valueWeight}
+        textAnchor={textAnchor}
+        dominantBaseline="auto"
+      />
       <text x={x} y={yUnit} fill={unitFill} fontSize={unitFontSize} textAnchor={textAnchor}
         className="font-orbitron">
         {unit}

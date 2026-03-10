@@ -33,6 +33,7 @@ export default function DebugView({ onBack }) {
   const [validationLogs, setValidationLogs] = useState([]);
   const [validationSoc, setValidationSoc] = useState(null);
   const aliveRef = useRef(true);
+  const TRANSPORT_MODE = localStorage.getItem('transportMode') || 'ble';
 
   useEffect(() => {
     aliveRef.current = true;
@@ -142,6 +143,18 @@ export default function DebugView({ onBack }) {
           className="cluster-back-btn"
           style={{ fontFamily: 'Orbitron, monospace' }}>
           ◀ DASH
+        </button>
+        {/* Toggle transport mode */}
+        <button
+          onClick={() => {
+            const newMode = TRANSPORT_MODE === 'ble' ? 'mock' : 'ble';
+            localStorage.setItem('transportMode', newMode);
+            window.location.reload();
+          }}
+          className="cluster-nav-btn cluster-nav-btn--blue"
+          style={{ fontFamily: 'Orbitron, monospace' }}
+        >
+          {TRANSPORT_MODE === 'ble' ? 'SWITCH TO MOCK' : 'SWITCH TO BLE'}
         </button>
         <button
           onClick={runMockValidation}

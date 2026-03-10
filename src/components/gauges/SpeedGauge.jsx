@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePid } from '../DashboardContext';
 import { PID_KEYS } from '../../pid-keys.js';
-import { valueToAngle, polarToXY, describeArc, BezelDefs, useSmoothedValue, GlowFilter } from './gauge-utils.jsx';
+import { valueToAngle, polarToXY, describeArc, BezelDefs, useSmoothedValue, GlowFilter, FixedNumericText } from './gauge-utils.jsx';
 
 // Speed gauge with octagonal bezel, consumption & power arcs, km/h display
 export default function SpeedGauge() {
@@ -198,18 +198,11 @@ export default function SpeedGauge() {
         })}
 
         {/* Live L/100km — left of speed, amber */}
-        <text
-          x="-8"
-          y="50"
-          opacity="0.85"          
-          fill="#f59e0b"
-          fontSize="9"
+        <FixedNumericText
+          text={l100km.toFixed(1)}
+          x={-8} y={50} fontSize={9} fill="#f59e0b" fontWeight={600}
           textAnchor="end"
-          dominantBaseline="middle"
-          className="font-orbitron" style={{ fontWeight: 600 }}
-        >
-          {l100km.toFixed(1)}
-        </text>
+        />
         <text
           x="-8"
           y="57"
@@ -222,18 +215,12 @@ export default function SpeedGauge() {
           L/100
         </text>
 
-        {/* Large speed number — centered */}
-        <text
-          x="0"
-          y="-6"
-          fill="#e0e0e0"
-          fontSize="28"
-          textAnchor="middle"
+        {/* Large speed number */}
+        <FixedNumericText
+          text={String(Math.round(smoothSpeed))}
+          x={0} y={-6} fontSize={28} fill="#e0e0e0" fontWeight={700}
           dominantBaseline="middle"
-          className="font-orbitron" style={{ fontWeight: 700 }}
-        >
-          {Math.round(smoothSpeed)}
-        </text>
+        />
         <text
           x="0"
           y="12"
@@ -246,18 +233,12 @@ export default function SpeedGauge() {
         </text>
 
         Live kW — right of speed, electric blue
-        <text
-          x="8"
-          y="50"
-          opacity="0.85"
-          fill="#00cfff"
-          fontSize="9"
+        {/* Live kW — right of speed, electric blue */}
+        <FixedNumericText
+          text={kwDraw.toFixed(1)}
+          x={8} y={50} fontSize={9} fill="#00cfff" fontWeight={600}
           textAnchor="start"
-          dominantBaseline="middle"
-          className="font-orbitron" style={{ fontWeight: 600 }}
-        >
-          {kwDraw.toFixed(1)}
-        </text>
+        />
         <text
           x="8"
           y="57"
